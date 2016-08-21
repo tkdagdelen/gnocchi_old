@@ -1,0 +1,25 @@
+
+Linreg pseudocode: 
+
+Starting with a VCF, load it into an RDD such that each line in the non-header part of the VCF becomes itself an RDD, inside a larger RDD.  Let's call the outer RDD vcfRDD. And each inner RDD a snpRDD.   
+
+Starting with a phenotype file, we load it into an RDD as well such that each element is a sample with its phenotypes. Let's call it the phenoRDD. 
+
+Eventually we'll need to multiply the x by y, so we should set up the RDDs so that we are able to find the right y to multiply with the right x in constant time. 
+
+def calculateR2:
+	xtotal = snpRDD.reduce(sum)
+	xcount = snpRDD.count()
+	xBar = xtotal/xcount
+	ytotal = snpRDD.reduce(sum)
+	ycount = snpRDD.count()
+	yBar =ytotal/ycount
+	beta = 
+
+def multiplyXandY(sampleID): 
+	for a given sample, multiply its recoded genotype value by its phenotype value. 
+
+
+def getGenotypeCoding(vcf_line)
+	- gets the Sample ID's and corresponding coding (0 1 2) for additive model or (0 1 1) for dominant model for every sample in the line.  
+

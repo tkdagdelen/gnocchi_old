@@ -15,32 +15,32 @@
  */
 package net.fnothaft.gnocchi.cli
 
-import htsjdk.samtools.ValidationStringency
+// import htsjdk.samtools.ValidationStringency
 import java.io.File
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
-import org.apache.hadoop.mapreduce.Job
+// import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.SparkContext._
 import org.apache.spark.{ Logging, SparkContext }
-import org.apache.spark.sql.SQLContext
-import org.bdgenomics.adam.models.ReferenceRegion
+// import org.apache.spark.sql.
+// import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.adam.rdd.ADAMContext._
-import org.bdgenomics.adam.rdd.BroadcastRegionJoin
+// import org.bdgenomics.adam.rdd.BroadcastRegionJoin
 import org.bdgenomics.formats.avro._
-import org.bdgenomics.utils.misc.HadoopUtil
+// import org.bdgenomics.utils.misc.HadoopUtil
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
-import org.apache.parquet.avro.AvroReadSupport
-import org.apache.parquet.hadoop.ParquetInputFormat
-import org.apache.parquet.hadoop.util.ContextUtil
+// import org.apache.parquet.avro.AvroReadSupport
+// import org.apache.parquet.hadoop.ParquetInputFormat
+// import org.apache.parquet.hadoop.util.ContextUtil
 
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import java.nio.file.{ Paths, Files }
 import org.apache.commons.io.FileUtils
-import org.apache.commons.io.filefilter.WildcardFileFilter
+// import org.apache.commons.io.filefilter.WildcardFileFilter
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{ DataFrame, Dataset }
+import org.apache.spark.sql.{ SQLContext, DataFrame, Dataset }
 import net.fnothaft.gnocchi.models.{ Phenotype, Association }
 
 object RegressPhenotypes extends BDGCommandCompanion {
@@ -95,6 +95,9 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
 
   def run(sc: SparkContext) {
 
+    // Check input args for errors
+    checkInputArgs(sc)
+
     // Load in genotype data
     val genotypeStates = loadGenotypes(sc)
 
@@ -108,6 +111,23 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     logResults(associations, sc)
   }
 
+  def checkInputArgs(sc: SparkContext): Unit = {
+
+    if (args.associationType == "CHI_SQUARED") {
+      assert(false, "CHI_SQUARED has been phased out.")
+    }
+    // assert that a phenoName is given
+    assert(Option[String](args.phenoName).isDefined, "The model assumes a phenotype file with multiple phenotypes as columns and a phenoName must be given.")
+
+    // assert covariates are given if -covar given
+    if (args.includeCovariates) assert(Option[String](args.covarNames).isDefined, "If the -covar flag is given, covarite names must be given using the -covarNames flag")
+
+    // assert that the primary phenotype isn't included in the covariates. 
+    for (covar <- args.covarNames.split(",")) {
+      assert(covar != args.phenoName, "Primary phenotype cannot be a covariate.")
+    }
+  }
+
   def loadGenotypes(sc: SparkContext): Dataset[GenotypeState] = {
     // set up sqlContext
     val sqlContext = SQLContext.getOrCreate(sc)
@@ -118,10 +138,19 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     var parquetInputDestination = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/")
 
     // hard-coded stuff
-    println("trying hard-coded stuff")
-    val gnomeDF = sqlContext.read.parquet("/Users/Taner/Desktop/Unite/gnocchi/gnocchi-cli/src/test/resources/testData/parquetInputFiles/")
-    gnomeDF.printSchema()
-    gnomeDF.show()
+    // println("trying hard-coded stuff")
+    // val gnomeDF = sqlContext.read.parquet("/Users/Taner/Desktop/Unite/gnocchi/gnocchi-cli/src/test/resources/testData/parquetInputFiles/")
+    // println("trying show frist")
+    // gnomeDF.show()
+    // println("show first worked")
+    // gnomeDF.printSchema()
+    // println(gnomeDF.getClass)
+    // println("show is the problem")
+    // // gnomeDF.show()
+    // val g = gnomeDF.select("sampleId").show()
+    // println(g.getClass)
+    // println("Show is not the problem")
+    // gnomeDF.select("sampleId").show()
 
     // val absGenotypesPath = new File(args.genotypes).getAbsolutePath()
     println("args.genotypes: " + args.genotypes)
@@ -188,19 +217,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // """ 
     // NEED TO INPUT METHODS FOR FILTERING SNPS AND SAMPLES
     // """
-    if (args.associationType == "CHI_SQUARED") {
-      assert(false, "CHI_SQUARED has been phased out.")
-    }
-    // assert that a phenoName is given
-    assert(Option[String](args.phenoName).isDefined, "The model assumes a phenotype file with multiple phenotypes as columns and a phenoName must be given.")
-
-    // assert covariates are given if -covar given
-    if (args.includeCovariates) assert(Option[String](args.covarNames).isDefined, "If the -covar flag is given, covarite names must be given using the -covarNames flag")
-
-    // assert that the primary phenotype isn't included in the covariates. 
-    for (covar <- args.covarNames.split(",")) {
-      assert(covar != args.phenoName, "Primary phenotype cannot be a covariate.")
-    }
 
     // Load phenotypes
     var phenotypes: RDD[Phenotype[Array[Double]]] = null
