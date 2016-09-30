@@ -13,20 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.fnothaft.gnocchi
+package net.fnothaft.gnocchi.serialization
 
 import com.esotericsoftware.kryo.Kryo
 import org.apache.spark.serializer.KryoRegistrator
 import org.bdgenomics.adam.serialization.AvroSerializer
 import org.bdgenomics.formats.avro.{ Genotype, Variant }
-import net.fnothaft.gnocchi.avro.{ Association, Phenotype, Similarity }
+import scala.collection.mutable.{ WrappedArray }
+import net.fnothaft.gnocchi.models.{ Phenotype, Association, Similarity }
 
 class GnocchiKryoRegistrator extends KryoRegistrator {
   override def registerClasses(kryo: Kryo) {
-    kryo.register(classOf[Association], new AvroSerializer[Association]())
+    kryo.register(classOf[Array[org.apache.spark.sql.types.StructType]])
+    kryo.register(classOf[org.apache.spark.sql.types.StructType])
+
+    // scala.collection.mutable
+    kryo.register(classOf[scala.collection.mutable.ArrayBuffer[_]])
+    kryo.register(classOf[scala.collection.mutable.WrappedArray.ofInt])
+    kryo.register(classOf[scala.collection.mutable.WrappedArray.ofLong])
+    kryo.register(classOf[scala.collection.mutable.WrappedArray.ofByte])
+    kryo.register(classOf[scala.collection.mutable.WrappedArray.ofChar])
+    kryo.register(classOf[scala.collection.mutable.WrappedArray.ofRef[_]])
+    //kryo.register(classOf[Phenotype.ofRef[Array[Double]]])
+
+    kryo.register(classOf[Similarity])
+    kryo.register(classOf[Association])
     kryo.register(classOf[Genotype], new AvroSerializer[Genotype]())
-    kryo.register(classOf[Phenotype], new AvroSerializer[Phenotype]())
-    kryo.register(classOf[Similarity], new AvroSerializer[Similarity]())
     kryo.register(classOf[Variant], new AvroSerializer[Variant]())
   }
 }

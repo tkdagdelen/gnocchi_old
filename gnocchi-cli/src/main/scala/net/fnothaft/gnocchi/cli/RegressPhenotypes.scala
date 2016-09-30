@@ -90,9 +90,6 @@ class RegressPhenotypesArgs extends Args4jBase {
   @Args4jOption(required = false, name = "-ploidy", usage = "Ploidy to assume. Default value is 2 (diploid).")
   var ploidy = 2
 
-  @Args4jOption(required = false, name = "-overwriteParquet", usage = "Overwrite parquet file that was created in the vcf conversion.")
-  var overwrite = false
-
   @Args4jOption(required = false, name = "-maf", usage = "Missingness per individual threshold. Default value is 0.01.")
   var maf = 0.01
 
