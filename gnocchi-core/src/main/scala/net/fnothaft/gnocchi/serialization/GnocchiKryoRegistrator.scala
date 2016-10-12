@@ -27,12 +27,14 @@ class GnocchiKryoRegistrator extends ADAMKryoRegistrator {
     kryo.register(classOf[Array[org.apache.spark.sql.types.StructType]])
     kryo.register(classOf[org.apache.spark.sql.types.StructType])
     kryo.register(classOf[Array[org.apache.spark.sql.types.StructField]])
+    kryo.register(classOf[Array[org.apache.spark.sql.catalyst.InternalRow]])
     kryo.register(classOf[org.apache.spark.sql.types.StructField])
     kryo.register(classOf[org.apache.spark.sql.types.Metadata])
     kryo.register(classOf[org.apache.spark.sql.types.Decimal])
     kryo.register(classOf[org.apache.spark.sql.types.DecimalType])
     kryo.register(classOf[org.apache.spark.sql.types.DataType])
     kryo.register(classOf[org.apache.spark.sql.types.MapType])
+    kryo.register(classOf[org.apache.spark.sql.catalyst.expressions.UnsafeRow])
     kryo.register(classOf[org.apache.spark.sql.types.ArrayType])
     kryo.register(Class.forName("scala.collection.immutable.Map$EmptyMap$"))
     kryo.register(Class.forName("org.apache.spark.sql.types.StringType$"))
@@ -48,6 +50,16 @@ class GnocchiKryoRegistrator extends ADAMKryoRegistrator {
     kryo.register(Class.forName("org.apache.spark.sql.types.LongType$"))
     kryo.register(Class.forName("org.apache.spark.sql.types.NullType$"))
     kryo.register(Class.forName("org.apache.spark.sql.types.TimestampType$"))
+
+    // java.lang
+    kryo.register(classOf[java.lang.Class[_]])
+
+    // java.util
+    kryo.register(classOf[java.util.ArrayList[_]])
+    kryo.register(classOf[java.util.LinkedHashMap[_, _]])
+    kryo.register(classOf[java.util.LinkedHashSet[_]])
+    kryo.register(classOf[java.util.HashMap[_, _]])
+    kryo.register(classOf[java.util.HashSet[_]])
 
     // scala.collection.mutable
     kryo.register(classOf[scala.collection.mutable.ArrayBuffer[_]])
