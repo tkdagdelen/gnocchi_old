@@ -1,5 +1,5 @@
 /**
- * Copyright 2015 Taner Dagdelen
+ * Copyright 2016 Taner Dagdelen
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,6 @@
 package net.fnothaft.gnocchi.models
 
 object AuxEncoders {
-  implicit def associationEncoder: org.apache.spark.sql.Encoder[Association] =
-    org.apache.spark.sql.Encoders.kryo[Association]
+  implicit def associationEncoder: org.apache.spark.sql.Encoder[Association] = org.apache.spark.sql.Encoders.kryo[Association]
+  implicit def genotypeStateEncoder: org.apache.spark.sql.Encoder[GenotypeState] = org.apache.spark.sql.Encoders.kryo[GenotypeState]
 }

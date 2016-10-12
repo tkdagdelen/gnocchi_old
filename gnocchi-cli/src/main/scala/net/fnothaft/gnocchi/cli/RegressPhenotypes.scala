@@ -126,10 +126,8 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     val sqlContext = SQLContext.getOrCreate(sc)
     import sqlContext.implicits._
 
-
-    val absAssociationPath = new File(args.associations).getAbsolutePath()
-    var parquetInputDestination = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/")
-    parquetInputDestination = parquetInputDestination + "/parquetInputFiles/"
+    val absAssociationPath: String = new File(args.associations).getAbsolutePath
+    val parquetInputDestination: String = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/") + "/parquetInputFiles/"
     val parquetFiles = new File(parquetInputDestination)
 
     // check for ADAM formatted version of the file specified in genotypes. If it doesn't exist, convert vcf to parquet using vcf2adam.
@@ -141,7 +139,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
       Vcf2ADAM(cmdLine).run(sc)
     }
-
 
     // Check for the genotypes file first.
     // val genoFile = new File(args.genotypes)
@@ -207,7 +204,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     //   val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
     //   Vcf2ADAM(cmdLine).run(sc)
     // }
-    val parquetInputDestination = args.genotypes
+    //    val parquetInputDestination = args.genotypes
     // read in parquet files
     import sqlContext.implicits._
     //    val genotypes = sqlContext.read.parquet(parquetInputDestination)
