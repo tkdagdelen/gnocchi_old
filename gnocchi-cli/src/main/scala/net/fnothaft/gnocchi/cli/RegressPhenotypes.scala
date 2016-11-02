@@ -29,12 +29,11 @@ import org.bdgenomics.utils.cli._
 import org.bdgenomics.utils.instrumentation.Metrics
 import org.bdgenomics.utils.instrumentation.{ MetricsListener, RecordedMetrics }
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
-
 import scala.math.exp
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.{ Dataset, DataFrame }
 import net.fnothaft.gnocchi.models.{ Association, AuxEncoders, Phenotype }
 
 object RegressPhenotypes extends BDGCommandCompanion {
@@ -141,14 +140,22 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     //      vcfPath = outpath
     //    }
 
+    import Timers._
+    Metrics.initialize(sc)
+    val metricsListener = new MetricsListener(new RecordedMetrics())
+
     // check for ADAM formatted version of the file specified in genotypes. If it doesn't exist, convert vcf to parquet using vcf2adam.
     if (!parquetFiles.getAbsoluteFile.exists) {
       val cmdLine: Array[String] = Array[String](vcfPath, parquetInputDestination)
-      Vcf2ADAM(cmdLine).run(sc)
+      VCF2AdamFunctionTimer.time {
+        Vcf2ADAM(cmdLine).run(sc)
+      }
     } else if (args.overwrite) {
       FileUtils.deleteDirectory(parquetFiles)
       val cmdLine: Array[String] = Array[String](vcfPath, parquetInputDestination)
-      Vcf2ADAM(cmdLine).run(sc)
+      VCF2AdamFunctionTimer.time {
+        Vcf2ADAM(cmdLine).run(sc)
+      }
     }
 
     // Check for the genotypes file first.
@@ -223,8 +230,10 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     //    val genotypes = sc.loadGenotypes(parquetInputDestination).toDF()
     // transform the parquet-formatted genotypes into a dataFrame of GenotypeStates and convert to Dataset.
 
-    val genotypeStates = sqlContext
-      .toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false)
+    var genotypeStates: DataFrame = null
+    ParquetToDataFrameTimer.time {
+      genotypeStates = sqlContext.toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false)
+    }
 
     /*
     For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
@@ -247,9 +256,21 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // mind filter
     genotypeStates.registerTempTable("genotypeStates")
 
-    val mindDF = sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+    var mindDF: DataFrame = null
+    MindDataFrameFilterTimer.time {
+      mindDF = sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+    }
+
     // TODO: Resolve with "IN" sql command once spark2.0 is integrated
-    val filteredGenotypeStates = genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*))
+    var filteredGenotypeStates: DataFrame = null
+    GenoDataFrameFilterTimer.time {
+      filteredGenotypeStates = genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*))
+    }
+
+    //    val writer = new PrintWriter(new OutputStreamWriter(System.out, "UTF-8"))
+    //    Metrics.print(writer, Some(metricsListener.metrics.sparkMetrics.stageTimes))
+    //    writer.close()
+
     filteredGenotypeStates.as[GenotypeState]
   }
 
@@ -272,12 +293,20 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       }
     }
 
+    import Timers._
+    Metrics.initialize(sc)
+    val metricsListener = new MetricsListener(new RecordedMetrics())
+
     // Load phenotypes
     var phenotypes: RDD[Phenotype[Array[Double]]] = null
     if (args.includeCovariates) {
-      phenotypes = LoadPhenotypesWithCovariates(args.phenotypes, args.covarFile, args.phenoName, args.covarNames, sc)
+      LoadPhenotypeTimer.time {
+        phenotypes = LoadPhenotypesWithCovariates(args.phenotypes, args.covarFile, args.phenoName, args.covarNames, sc)
+      }
     } else {
-      phenotypes = LoadPhenotypesWithoutCovariates(args.phenotypes, args.phenoName, sc)
+      LoadPhenotypeTimer.time {
+        phenotypes = LoadPhenotypesWithoutCovariates(args.phenotypes, args.phenoName, sc)
+      }
     }
     phenotypes
   }
@@ -306,9 +335,9 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     }
     associations.take(100).foreach(assoc => println(assoc))
 
-    val writer = new PrintWriter(new OutputStreamWriter(System.out))
-    Metrics.print(writer, Some(metricsListener.metrics.sparkMetrics.stageTimes))
-    writer.close()
+    //    val writer = new PrintWriter(new OutputStreamWriter(System.out, "UTF-8"))
+    //    Metrics.print(writer, Some(metricsListener.metrics.sparkMetrics.stageTimes))
+    //    writer.close()
 
     sqlContext.createDataset(associations)
   }
