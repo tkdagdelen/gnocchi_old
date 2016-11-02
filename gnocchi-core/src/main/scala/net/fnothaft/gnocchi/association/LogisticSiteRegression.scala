@@ -128,7 +128,7 @@ trait LogisticSiteRegression extends SiteRegression {
     variant.setEnd(locus.end)
     variant.setAlternateAllele(altAllele)
 
-    var toRet = new Association(null,null,-9.0,null)
+    var toRet = new Association(null, null, -9.0, null)
     try {
       val fisherInfo = -hessian
       val fishInv = inv(fisherInfo)

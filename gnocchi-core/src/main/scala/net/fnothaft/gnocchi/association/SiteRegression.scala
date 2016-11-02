@@ -15,7 +15,7 @@
  */
 package net.fnothaft.gnocchi.association
 
-import net.fnothaft.gnocchi.models.{Association, GenotypeState, MultipleRegressionDoublePhenotype, Phenotype}
+import net.fnothaft.gnocchi.models.{ Association, GenotypeState, MultipleRegressionDoublePhenotype, Phenotype }
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.models.ReferenceRegion
@@ -32,23 +32,23 @@ trait SiteRegression extends Serializable {
   */
   final def apply[T](rdd: RDD[GenotypeState],
                      phenotypes: RDD[Phenotype[T]]): RDD[Association] = {
-//    rdd.take(100).foreach(el => println(el))
-//    phenotypes.take(100).foreach(el => {
-//      println(el)
-//      println(el.asInstanceOf[MultipleRegressionDoublePhenotype].value.toList)
-//    })
+    //    rdd.take(100).foreach(el => println(el))
+    //    phenotypes.take(100).foreach(el => {
+    //      println(el)
+    //      println(el.asInstanceOf[MultipleRegressionDoublePhenotype].value.toList)
+    //    })
     val toRet = rdd.keyBy(_.sampleId)
       // join together the samples with both genotype and phenotype entry
       .join(phenotypes.keyBy(_.sampleId))
-//    println("\n\n\n\n\n Associations: " + toRet.take(10).toList)
+    //    println("\n\n\n\n\n Associations: " + toRet.take(10).toList)
     toRet.map(kvv => {
-        // unpack the entry of the joined rdd into id and actual info
-        val (_, p) = kvv
-        // unpack the information into genotype state and pheno
-        val (gs, pheno) = p
-        // extract referenceAllele and phenotype and pack up with p, then group by key
-        ((gs.referenceAllele, pheno.phenotype), p)
-      }).groupByKey()
+      // unpack the entry of the joined rdd into id and actual info
+      val (_, p) = kvv
+      // unpack the information into genotype state and pheno
+      val (gs, pheno) = p
+      // extract referenceAllele and phenotype and pack up with p, then group by key
+      ((gs.referenceAllele, pheno.phenotype), p)
+    }).groupByKey()
       .map(site => {
         val (((pos, allele), phenotype), observations) = site
         // build array to regress on, and then regress
@@ -60,9 +60,9 @@ trait SiteRegression extends Serializable {
         }).toArray, pos, allele, phenotype)
       })
 
-//    println("\n\n\n\n\n" + toRet.take(10).toList)
-//    println("\n\n\n\n\n\n\n associaitons: ")
-//    toRet
+    //    println("\n\n\n\n\n" + toRet.take(10).toList)
+    //    println("\n\n\n\n\n\n\n associaitons: ")
+    //    toRet
   }
 
   /**

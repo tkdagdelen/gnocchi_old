@@ -15,7 +15,8 @@
  */
 package net.fnothaft.gnocchi.cli
 
-import java.io.{ File }
+import java.io.{ File, OutputStreamWriter, PrintWriter }
+
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
@@ -25,14 +26,16 @@ import org.apache.spark.sql.SQLContext
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.formats.avro._
 import org.bdgenomics.utils.cli._
+import org.bdgenomics.utils.instrumentation.Metrics
+import org.bdgenomics.utils.instrumentation.{ MetricsListener, RecordedMetrics }
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
-import scala.math.exp
 
+import scala.math.exp
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{ Dataset }
-import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders }
+import org.apache.spark.sql.Dataset
+import net.fnothaft.gnocchi.models.{ Association, AuxEncoders, Phenotype }
 
 object RegressPhenotypes extends BDGCommandCompanion {
   val commandName = "regressPhenotypes"
@@ -284,15 +287,29 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
                       sc: SparkContext): Dataset[Association] = {
     val sqlContext = SQLContext.getOrCreate(sc)
     val contextOption = Option(sc)
+
+    Metrics.initialize(sc)
+    val metricsListener = new MetricsListener(new RecordedMetrics())
+    sc.addSparkListener(metricsListener)
+
     import AuxEncoders._
+    import org.apache.spark.rdd.MetricsContext._
+
+    val RDDgenotypeStates: RDD[GenotypeState] = genotypeStates.rdd.instrument()
+
     println("The problem is in performAnalysis in DominantLogisticAssociation")
     val associations = args.associationType match {
-      case "ADDITIVE_LINEAR"   => AdditiveLinearAssociation(genotypeStates.rdd, phenotypes)
-      case "ADDITIVE_LOGISTIC" => AdditiveLogisticAssociation(genotypeStates.rdd, phenotypes)
-      case "DOMINANT_LINEAR"   => DominantLinearAssociation(genotypeStates.rdd, phenotypes)
-      case "DOMINANT_LOGISTIC" => DominantLogisticAssociation(genotypeStates.rdd, phenotypes)
+      case "ADDITIVE_LINEAR"   => AdditiveLinearAssociation(RDDgenotypeStates, phenotypes)
+      case "ADDITIVE_LOGISTIC" => AdditiveLogisticAssociation(RDDgenotypeStates, phenotypes)
+      case "DOMINANT_LINEAR"   => DominantLinearAssociation(RDDgenotypeStates, phenotypes)
+      case "DOMINANT_LOGISTIC" => DominantLogisticAssociation(RDDgenotypeStates, phenotypes)
     }
     associations.take(100).foreach(assoc => println(assoc))
+
+    val writer = new PrintWriter(new OutputStreamWriter(System.out))
+    Metrics.print(writer, Some(metricsListener.metrics.sparkMetrics.stageTimes))
+    writer.close()
+
     sqlContext.createDataset(associations)
   }
 
@@ -312,5 +329,13 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     } else {
       associations.toDF.write.parquet(args.associations)
     }
+  }
+
+  object Timers extends Metrics {
+    val VCF2AdamFunctionTimer = timer("Convert VCF to Adam format")
+    val ParquetToDataFrameTimer = timer("Loading Parquet File to Data Frame")
+    val MindDataFrameFilterTimer = timer("MinD dataframe filter operation")
+    val GenoDataFrameFilterTimer = timer("Geno dataframe filter operation")
+    val LoadPhenotypeTimer = timer("Geno dataframe filter operation")
   }
 }
