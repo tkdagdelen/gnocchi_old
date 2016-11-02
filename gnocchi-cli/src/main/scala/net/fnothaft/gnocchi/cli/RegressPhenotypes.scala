@@ -33,7 +33,7 @@ import scala.math.exp
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{ Dataset, DataFrame }
+import org.apache.spark.sql.{ DataFrame, Dataset }
 import net.fnothaft.gnocchi.models.{ Association, AuxEncoders, Phenotype }
 
 object RegressPhenotypes extends BDGCommandCompanion {
@@ -106,6 +106,11 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
 
   def run(sc: SparkContext) {
 
+    import Timers._
+    Metrics.initialize(sc)
+    val metricsListener = new MetricsListener(new RecordedMetrics())
+    sc.addSparkListener(metricsListener)
+
     // Load in genotype data
     val genotypeStates = loadGenotypes(sc)
 
@@ -115,8 +120,16 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // Perform analysis
     val associations = performAnalysis(genotypeStates, phenotypes, sc)
 
+    print_metrics_to_cmdline(metricsListener)
+
     // Log the results
     logResults(associations, sc)
+  }
+
+  def print_metrics_to_cmdline(metricsListener: MetricsListener) {
+    val writer = new PrintWriter(new OutputStreamWriter(System.out, "UTF-8"))
+    Metrics.print(writer, Some(metricsListener.metrics.sparkMetrics.stageTimes))
+    writer.close()
   }
 
   def loadGenotypes(sc: SparkContext): Dataset[GenotypeState] = {
@@ -141,8 +154,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     //    }
 
     import Timers._
-    Metrics.initialize(sc)
-    val metricsListener = new MetricsListener(new RecordedMetrics())
 
     // check for ADAM formatted version of the file specified in genotypes. If it doesn't exist, convert vcf to parquet using vcf2adam.
     if (!parquetFiles.getAbsoluteFile.exists) {
@@ -267,10 +278,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       filteredGenotypeStates = genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*))
     }
 
-    //    val writer = new PrintWriter(new OutputStreamWriter(System.out, "UTF-8"))
-    //    Metrics.print(writer, Some(metricsListener.metrics.sparkMetrics.stageTimes))
-    //    writer.close()
-
     filteredGenotypeStates.as[GenotypeState]
   }
 
@@ -294,8 +301,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     }
 
     import Timers._
-    Metrics.initialize(sc)
-    val metricsListener = new MetricsListener(new RecordedMetrics())
 
     // Load phenotypes
     var phenotypes: RDD[Phenotype[Array[Double]]] = null
@@ -317,10 +322,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     val sqlContext = SQLContext.getOrCreate(sc)
     val contextOption = Option(sc)
 
-    Metrics.initialize(sc)
-    val metricsListener = new MetricsListener(new RecordedMetrics())
-    sc.addSparkListener(metricsListener)
-
     import AuxEncoders._
     import org.apache.spark.rdd.MetricsContext._
 
@@ -334,11 +335,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       case "DOMINANT_LOGISTIC" => DominantLogisticAssociation(RDDgenotypeStates, phenotypes)
     }
     associations.take(100).foreach(assoc => println(assoc))
-
-    //    val writer = new PrintWriter(new OutputStreamWriter(System.out, "UTF-8"))
-    //    Metrics.print(writer, Some(metricsListener.metrics.sparkMetrics.stageTimes))
-    //    writer.close()
-
     sqlContext.createDataset(associations)
   }
 
@@ -359,12 +355,12 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       associations.toDF.write.parquet(args.associations)
     }
   }
+}
 
-  object Timers extends Metrics {
-    val VCF2AdamFunctionTimer = timer("Convert VCF to Adam format")
-    val ParquetToDataFrameTimer = timer("Loading Parquet File to Data Frame")
-    val MindDataFrameFilterTimer = timer("MinD dataframe filter operation")
-    val GenoDataFrameFilterTimer = timer("Geno dataframe filter operation")
-    val LoadPhenotypeTimer = timer("Geno dataframe filter operation")
-  }
+object Timers extends Metrics {
+  val VCF2AdamFunctionTimer = timer("Convert VCF to Adam format")
+  val ParquetToDataFrameTimer = timer("Loading Parquet File to Data Frame")
+  val MindDataFrameFilterTimer = timer("MinD dataframe filter operation")
+  val GenoDataFrameFilterTimer = timer("Geno dataframe filter operation")
+  val LoadPhenotypeTimer = timer("Geno dataframe filter operation")
 }
