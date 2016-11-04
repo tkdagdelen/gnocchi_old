@@ -72,34 +72,40 @@ trait LogisticSiteRegression extends SiteRegression {
     // initialize parameters
     var iter = 0
     val maxIter = 100
-    var update = 1
     val tolerance = 1e-3
     var singular = false
     var convergence = false
+    var update: DenseVector[Double] = DenseVector[Double]()
     val beta = Array.fill[Double](observationLength + 1)(0.0)
-    var hessian = DenseMatrix.zeros[Double](observationLength + 1, observationLength + 1)
-    var score = DenseVector.zeros[Double](observationLength + 1)
-    var logitArray = Array.fill[Double](observationLength + 1)(0.0)
     val data = lp
     var pi = 0.0
+    var hessian = DenseMatrix.zeros[Double](observationLength + 1, observationLength + 1)
 
     // optimize using Newton-Raphson
     while ((iter < maxIter) && !convergence && !singular) {
       try {
         // calculate the logit for each xi
-        logitArray = logit(data, beta)
+        val logitArray = logit(data, beta)
 
         // calculate the hessian and score
+
         hessian = DenseMatrix.zeros[Double](observationLength + 1, observationLength + 1)
-        score = DenseVector.zeros[Double](observationLength + 1)
+        var score = DenseVector.zeros[Double](observationLength + 1)
         for (i <- observations.indices) {
-          pi = Math.exp(logitArray(i)) / (1 + Math.exp(logitArray(i)))
-          hessian += -xixiT(i) * pi * (1 - pi)
+          //          println(hessian)
+          //          println("\n")
+          println("inside: " + logitArray(i))
+          //          pi = Math.exp(logitArray(i)) / (1 + Math.exp(logitArray(i)))
+          pi = Math.exp(-logSumOfExponentials(Array(0.0, -logitArray(i))))
+          println("pi: " + pi)
+          hessian += -xixiT(i) * pi * (1.0 - pi)
           score += xiVectors(i) * (lp(i).label - pi)
         }
 
         // compute the update and check convergence
-        var update = -inv(hessian) * score
+        update = -inv(hessian) * score
+        println(update)
+        println("\n")
         if (max(abs(update)) <= tolerance) {
           convergence = true
         }
@@ -107,6 +113,12 @@ trait LogisticSiteRegression extends SiteRegression {
         // compute new weights
         for (j <- beta.indices) {
           beta(j) += update(j)
+        }
+
+        println("LOG_REG - b: " + beta.toList)
+        if (beta.exists(_.isNaN)) {
+          println("LOG_REG - Broke on iteration: " + iter)
+          iter = maxIter
         }
       } catch {
         case error: breeze.linalg.MatrixSingularException => singular = true
@@ -146,7 +158,7 @@ trait LogisticSiteRegression extends SiteRegression {
 
       // calculate wald test statistics
       val waldTests = 1d - probs
-      println("WaldTest: " + waldTests(1))
+      //      println("WaldTest: " + waldTests(1))
 
       // calculate the log of the p-value for the genetic component
       val logWaldTests = waldTests.map(t => {
@@ -160,10 +172,10 @@ trait LogisticSiteRegression extends SiteRegression {
         "fisherInfo" -> fisherInfo,
         "XiVectors" -> xiVectors(0),
         "xixit" -> xixiT(0),
-        "prob" -> pi,
-        "logitArray" -> logitArray(0))
+        "prob" -> pi)
+      //        "logitArray" -> logitArray(0))
 
-      toRet = Association(variant, phenotype, waldTests(1), statistics)
+      toRet = Association(variant, phenotype, logWaldTests(1), statistics)
     } catch {
       case error: breeze.linalg.MatrixSingularException => matrixSingular = true
     }
@@ -177,15 +189,30 @@ trait LogisticSiteRegression extends SiteRegression {
   def logit(lpArray: Array[LabeledPoint], b: Array[Double]): Array[Double] = {
     val logitResults = new Array[Double](lpArray.length)
     val bDense = DenseVector(b)
+    //    println("b: " + b.toList)
     for (j <- logitResults.indices) {
       val lp = lpArray(j)
-      println("lp.features: " + lp.features.toArray.toList)
-      println("b: " + b.toList)
-      println("bdense: " + bDense.toArray.toList)
+      //      println("lp.features: " + lp.features.toArray.toList)
+      //      println("b: " + b.toList)
+      //      println("bdense: " + bDense.toArray.toList)
       logitResults(j) = DenseVector(1.0 +: lp.features.toArray) dot bDense
-      println("logit: " + logitResults(j))
+      //      println("logit: " + logitResults(j))
     }
     logitResults
+  }
+
+  def logSumOfExponentials(exps: Array[Double]): Double = {
+    if (exps.length == 1) {
+      exps(0)
+    }
+    val maxExp = max(exps)
+    var sums = 0.0
+    for (i <- exps.indices) {
+      if (exps(i) != 1.2340980408667956E-4) {
+        sums += java.lang.Math.exp(exps(i) - maxExp)
+      }
+    }
+    maxExp + Math.log(sums)
   }
 }
 

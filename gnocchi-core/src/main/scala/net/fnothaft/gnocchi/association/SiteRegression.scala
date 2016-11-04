@@ -37,18 +37,17 @@ trait SiteRegression extends Serializable {
     //      println(el)
     //      println(el.asInstanceOf[MultipleRegressionDoublePhenotype].value.toList)
     //    })
-    val toRet = rdd.keyBy(_.sampleId)
+    rdd.keyBy(_.sampleId)
       // join together the samples with both genotype and phenotype entry
       .join(phenotypes.keyBy(_.sampleId))
-    //    println("\n\n\n\n\n Associations: " + toRet.take(10).toList)
-    toRet.map(kvv => {
-      // unpack the entry of the joined rdd into id and actual info
-      val (_, p) = kvv
-      // unpack the information into genotype state and pheno
-      val (gs, pheno) = p
-      // extract referenceAllele and phenotype and pack up with p, then group by key
-      ((gs.referenceAllele, pheno.phenotype), p)
-    }).groupByKey()
+      .map(kvv => {
+        // unpack the entry of the joined rdd into id and actual info
+        val (_, p) = kvv
+        // unpack the information into genotype state and pheno
+        val (gs, pheno) = p
+        // extract referenceAllele and phenotype and pack up with p, then group by key
+        ((gs.referenceAllele, pheno.phenotype), p)
+      }).groupByKey()
       .map(site => {
         val (((pos, allele), phenotype), observations) = site
         // build array to regress on, and then regress
@@ -59,10 +58,6 @@ trait SiteRegression extends Serializable {
           (clipOrKeepState(genotypeState), phenotype.toDouble)
         }).toArray, pos, allele, phenotype)
       })
-
-    //    println("\n\n\n\n\n" + toRet.take(10).toList)
-    //    println("\n\n\n\n\n\n\n associaitons: ")
-    //    toRet
   }
 
   /**
