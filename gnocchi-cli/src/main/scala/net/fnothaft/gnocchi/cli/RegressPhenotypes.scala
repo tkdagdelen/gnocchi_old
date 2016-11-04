@@ -241,10 +241,8 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     //    val genotypes = sc.loadGenotypes(parquetInputDestination).toDF()
     // transform the parquet-formatted genotypes into a dataFrame of GenotypeStates and convert to Dataset.
 
-    var genotypeStates: DataFrame = null
-    ParquetToDataFrameTimer.time {
-      genotypeStates = sqlContext.toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false)
-    }
+    val genotypeStates =
+      ParquetToDataFrameTimer.time { sqlContext.toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false) }
 
     /*
     For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
@@ -267,16 +265,14 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // mind filter
     genotypeStates.registerTempTable("genotypeStates")
 
-    var mindDF: DataFrame = null
-    MindDataFrameFilterTimer.time {
-      mindDF = sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
-    }
+    val mindDF =
+      MindDataFrameFilterTimer.time {
+        sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+      }
 
     // TODO: Resolve with "IN" sql command once spark2.0 is integrated
-    var filteredGenotypeStates: DataFrame = null
-    GenoDataFrameFilterTimer.time {
-      filteredGenotypeStates = genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*))
-    }
+    val filteredGenotypeStates =
+      GenoDataFrameFilterTimer.time { genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*)) }
 
     filteredGenotypeStates.as[GenotypeState]
   }
@@ -362,5 +358,5 @@ object Timers extends Metrics {
   val ParquetToDataFrameTimer = timer("Loading Parquet File to Data Frame")
   val MindDataFrameFilterTimer = timer("MinD dataframe filter operation")
   val GenoDataFrameFilterTimer = timer("Geno dataframe filter operation")
-  val LoadPhenotypeTimer = timer("Geno dataframe filter operation")
+  val LoadPhenotypeTimer = timer("Load Phenotype operation")
 }
