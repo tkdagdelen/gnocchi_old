@@ -70,6 +70,7 @@ trait LogisticSiteRegression extends SiteRegression {
     ///// Solve the LogisticRegression using Newton-Raphson algorithm (ESL p. 120) /////
 
     // initialize parameters
+    val dampener = DenseMatrix.eye[Double](observationLength + 1)
     var iter = 0
     val maxIter = 100
     val tolerance = 1e-3
@@ -103,6 +104,7 @@ trait LogisticSiteRegression extends SiteRegression {
         }
 
         // compute the update and check convergence
+        println(hessian)
         update = -inv(hessian) * score
         println(update)
         println("\n")
@@ -143,7 +145,7 @@ trait LogisticSiteRegression extends SiteRegression {
     var toRet = new Association(null, null, -9.0, null)
     try {
       val fisherInfo = -hessian
-      val fishInv = inv(fisherInfo)
+      val fishInv = inv(fisherInfo + dampener)
       val standardErrors = sqrt(abs(diag(fishInv)))
 
       // calculate Wald z-scores
