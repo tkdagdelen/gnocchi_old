@@ -15,7 +15,8 @@
  */
 package net.fnothaft.gnocchi.cli
 
-import java.io.{ File }
+import java.io.{ File, OutputStreamWriter, PrintWriter }
+
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
@@ -25,14 +26,15 @@ import org.apache.spark.sql.SQLContext
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.formats.avro._
 import org.bdgenomics.utils.cli._
+import org.bdgenomics.utils.instrumentation.Metrics
+import org.bdgenomics.utils.instrumentation.{ MetricsListener, RecordedMetrics }
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 import scala.math.exp
-
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{ Dataset }
-import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders }
+import org.apache.spark.sql.{ DataFrame, Dataset }
+import net.fnothaft.gnocchi.models.{ Association, AuxEncoders, Phenotype }
 
 object RegressPhenotypes extends BDGCommandCompanion {
   val commandName = "regressPhenotypes"
@@ -106,6 +108,11 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     val a = args.oneTwo
     //    println(s"\n\n\n\n\n\n oneTwo: $a \n\n\n\n\n\n\n\n")
 
+    import Timers._
+    Metrics.initialize(sc)
+    val metricsListener = new MetricsListener(new RecordedMetrics())
+    sc.addSparkListener(metricsListener)
+
     // Load in genotype data
     val genotypeStates = loadGenotypes(sc)
 
@@ -115,8 +122,16 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // Perform analysis
     val associations = performAnalysis(genotypeStates, phenotypes, sc)
 
+    print_metrics_to_cmdline(metricsListener)
+
     // Log the results
     logResults(associations, sc)
+  }
+
+  def print_metrics_to_cmdline(metricsListener: MetricsListener) {
+    val writer = new PrintWriter(new OutputStreamWriter(System.out, "UTF-8"))
+    Metrics.print(writer, Some(metricsListener.metrics.sparkMetrics.stageTimes))
+    writer.close()
   }
 
   def loadGenotypes(sc: SparkContext): Dataset[GenotypeState] = {
@@ -140,14 +155,20 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     //      vcfPath = outpath
     //    }
 
+    import Timers._
+
     // check for ADAM formatted version of the file specified in genotypes. If it doesn't exist, convert vcf to parquet using vcf2adam.
     if (!parquetFiles.getAbsoluteFile.exists) {
       val cmdLine: Array[String] = Array[String](vcfPath, parquetInputDestination)
-      Vcf2ADAM(cmdLine).run(sc)
+      VCF2AdamFunctionTimer.time {
+        Vcf2ADAM(cmdLine).run(sc)
+      }
     } else if (args.overwrite) {
       FileUtils.deleteDirectory(parquetFiles)
       val cmdLine: Array[String] = Array[String](vcfPath, parquetInputDestination)
-      Vcf2ADAM(cmdLine).run(sc)
+      VCF2AdamFunctionTimer.time {
+        Vcf2ADAM(cmdLine).run(sc)
+      }
     }
 
     // Check for the genotypes file first.
@@ -222,8 +243,8 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     //    val genotypes = sc.loadGenotypes(parquetInputDestination).toDF()
     // transform the parquet-formatted genotypes into a dataFrame of GenotypeStates and convert to Dataset.
 
-    val genotypeStates = sqlContext
-      .toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false)
+    val genotypeStates =
+      ParquetToDataFrameTimer.time { sqlContext.toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false) }
 
     /*
     For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
@@ -246,9 +267,15 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // mind filter
     genotypeStates.registerTempTable("genotypeStates")
 
-    val mindDF = sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+    val mindDF =
+      MindDataFrameFilterTimer.time {
+        sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+      }
+
     // TODO: Resolve with "IN" sql command once spark2.0 is integrated
-    val filteredGenotypeStates = genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*))
+    val filteredGenotypeStates =
+      GenoDataFrameFilterTimer.time { genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*)) }
+
     filteredGenotypeStates.as[GenotypeState]
   }
 
@@ -271,12 +298,18 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       }
     }
 
+    import Timers._
+
     // Load phenotypes
     var phenotypes: RDD[Phenotype[Array[Double]]] = null
     if (args.includeCovariates) {
-      phenotypes = LoadPhenotypesWithCovariates(args.oneTwo, args.phenotypes, args.covarFile, args.phenoName, args.covarNames, sc)
+      LoadPhenotypeTimer.time {
+        phenotypes = LoadPhenotypesWithCovariates(args.oneTwo, args.phenotypes, args.covarFile, args.phenoName, args.covarNames, sc)
+      }
     } else {
-      phenotypes = LoadPhenotypesWithoutCovariates(args.oneTwo, args.phenotypes, args.phenoName, sc)
+      LoadPhenotypeTimer.time {
+        phenotypes = LoadPhenotypesWithoutCovariates(args.oneTwo, args.phenotypes, args.phenoName, sc)
+      }
     }
     phenotypes
   }
@@ -286,12 +319,17 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
                       sc: SparkContext): Dataset[Association] = {
     val sqlContext = SQLContext.getOrCreate(sc)
     val contextOption = Option(sc)
+
     import AuxEncoders._
+    import org.apache.spark.rdd.MetricsContext._
+
+    val RDDgenotypeStates: RDD[GenotypeState] = genotypeStates.rdd.instrument()
+
     val associations = args.associationType match {
-      case "ADDITIVE_LINEAR"   => AdditiveLinearAssociation(genotypeStates.rdd, phenotypes)
-      case "ADDITIVE_LOGISTIC" => AdditiveLogisticAssociation(genotypeStates.rdd, phenotypes)
-      case "DOMINANT_LINEAR"   => DominantLinearAssociation(genotypeStates.rdd, phenotypes)
-      case "DOMINANT_LOGISTIC" => DominantLogisticAssociation(genotypeStates.rdd, phenotypes)
+      case "ADDITIVE_LINEAR"   => AdditiveLinearAssociation(RDDgenotypeStates, phenotypes)
+      case "ADDITIVE_LOGISTIC" => AdditiveLogisticAssociation(RDDgenotypeStates, phenotypes)
+      case "DOMINANT_LINEAR"   => DominantLinearAssociation(RDDgenotypeStates, phenotypes)
+      case "DOMINANT_LOGISTIC" => DominantLogisticAssociation(RDDgenotypeStates, phenotypes)
     }
     //    associations.take(100).foreach(assoc => println(assoc))
     sqlContext.createDataset(associations)
@@ -314,4 +352,12 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       associations.toDF.write.parquet(args.associations)
     }
   }
+}
+
+object Timers extends Metrics {
+  val VCF2AdamFunctionTimer = timer("Convert VCF to Adam format")
+  val ParquetToDataFrameTimer = timer("Loading Parquet File to Data Frame")
+  val MindDataFrameFilterTimer = timer("MinD dataframe filter operation")
+  val GenoDataFrameFilterTimer = timer("Geno dataframe filter operation")
+  val LoadPhenotypeTimer = timer("Load Phenotype operation")
 }
