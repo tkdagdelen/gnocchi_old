@@ -162,7 +162,8 @@ private[gnocchi] object LoadPhenotypesWithCovariates extends Serializable {
     //      println("sampleId: " + d._1)
     //      println("data: " + d._2.toList)
     //    })
-
+    val dataToPrint = data.take(5).toList
+    println(dataToPrint)
     // merge the phenos and covariates into same RDD row
     val joinedData = data.cogroup(covarData).map(pair => {
       val (sampleId, (phenos, covariates)) = pair
@@ -197,7 +198,10 @@ private[gnocchi] object LoadPhenotypesWithCovariates extends Serializable {
       }
     }).map(p => {
       if (oneTwo) {
-        p.slice(0, primaryPhenoIndex) ++ List((p(primaryPhenoIndex).toDouble - 1).toString) ++ p.slice(primaryPhenoIndex + 1, p.length)
+        println("oneTwo flagged")
+        val toRet = p.slice(0, primaryPhenoIndex) ++ List((p(primaryPhenoIndex).toDouble - 1).toString) ++ p.slice(primaryPhenoIndex + 1, p.length)
+        println("toRet: " + toRet.toList)
+        toRet
       } else {
         p
       }

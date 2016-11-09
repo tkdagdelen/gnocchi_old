@@ -105,6 +105,8 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
   val companion = RegressPhenotypes
 
   def run(sc: SparkContext) {
+    val a = args.oneTwo
+    //    println(s"\n\n\n\n\n\n oneTwo: $a \n\n\n\n\n\n\n\n")
 
     import Timers._
     Metrics.initialize(sc)
@@ -329,7 +331,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       case "DOMINANT_LINEAR"   => DominantLinearAssociation(RDDgenotypeStates, phenotypes)
       case "DOMINANT_LOGISTIC" => DominantLogisticAssociation(RDDgenotypeStates, phenotypes)
     }
-    associations.take(100).foreach(assoc => println(assoc))
+    //    associations.take(100).foreach(assoc => println(assoc))
     sqlContext.createDataset(associations)
   }
 
@@ -344,7 +346,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     if (args.saveAsText) {
       associations.rdd.keyBy(_.logPValue).sortBy(_._1).map(r => "%s, %s, %s"
         .format(r._2.variant.getContig.getContigName,
-          r._2.variant.getStart, exp(r._2.logPValue).toString))
+          r._2.variant.getStart, Math.pow(10, r._2.logPValue).toString))
         .saveAsTextFile(args.associations)
     } else {
       associations.toDF.write.parquet(args.associations)
