@@ -47,7 +47,8 @@ trait SiteRegression extends Serializable {
         val (gs, pheno) = p
         // extract referenceAllele and phenotype and pack up with p, then group by key
         ((gs.referenceAllele, pheno.phenotype), p)
-      }).groupByKey()
+      })
+      .groupByKey()
       .map(site => {
         val (((pos, allele), phenotype), observations) = site
         // build array to regress on, and then regress
