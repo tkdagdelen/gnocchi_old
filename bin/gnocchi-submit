@@ -78,12 +78,12 @@ echo "Using SPARK_SUBMIT=$SPARK_SUBMIT"
 "$SPARK_SUBMIT" \
   --class net.fnothaft.gnocchi.cli.GnocchiMain \
   --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
-  --conf spark.kryo.registrator=org.bdgenomics.adam.serialization.ADAMKryoRegistrator \
-  --conf spark.kryo.registrationRequired=false \
+  --conf spark.kryo.registrator=net.fnothaft.gnocchi.serialization.GnocchiKryoRegistrator \
+  --conf spark.kryo.registrationRequired=true \
   $SPARK_ARGS \
   $GNOCCHI_CLI_JAR \
   $GNOCCHI_ARGS
 echo "Done submiting the args to GnochiMain.main()"
   # org.bdgenomics.adam.serialization.ADAMKryoRegistrator
-  # This was the old one. net.fnothaft.gnocchi.GnocchiKryoRegistrator
+  # This was the old one. net.fnothaft.gnocchi.serialization.GnocchiKryoRegistrator
   # org.bdgenomics.adam.AdamKryoRegistrator
