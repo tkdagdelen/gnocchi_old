@@ -23,7 +23,7 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.bdgenomics.adam.rdd.ADAMContext._
-import org.bdgenomics.formats.avro._
+import org.bdgenomics.formats.avro.{ Strand, Contig, Feature }
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 import scala.math.exp
@@ -74,6 +74,9 @@ class RegressPhenotypesArgs extends Args4jBase {
   @Args4jOption(required = false, name = "-saveAsText", usage = "Chooses to save as text. If not selected, saves to Parquet.")
   var saveAsText = false
 
+  @Args4jOption(required = false, name = "-saveAsFeatures", usage = "Chooses to save as features. If not selected, saves to Parquet.")
+  var saveAsFeature = false
+
   @Args4jOption(required = false, name = "-validationStringency", usage = "The level of validation to use on inputs. By default, strict. Choices are STRICT, LENIENT, SILENT.")
   var validationStringency: String = "STRICT"
 
@@ -94,6 +97,7 @@ class RegressPhenotypesArgs extends Args4jBase {
 
   @Args4jOption(required = false, name = "-oneTwo", usage = "If cases are 1 and controls 2 instead of 0 and 1")
   var oneTwo = false
+
   //
   //  @Args4jOption(required = false, name = "-mapFile", usage = "Path to PLINK MAP file from which to get Varinat IDs.")
   //  var mapFile: String = null
@@ -296,6 +300,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
                  sc: SparkContext) = {
     // save dataset
     val sqlContext = SQLContext.getOrCreate(sc)
+    import sqlContext.implicits._
     val associationsFile = new File(args.associations)
     if (associationsFile.exists) {
       FileUtils.deleteDirectory(associationsFile)
@@ -305,6 +310,19 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
         .format(r._2.variant.getContigName,
           r._2.variant.getStart, Math.pow(10, r._2.logPValue).toString))
         .saveAsTextFile(args.associations)
+    } else if (args.saveAsFeature) {
+      sqlContext.createDataset(associations.rdd.map(r => {
+        //new Feature(None, "SNP", "Gnocchi", r.variant.getContig, r.variant.getStart, r.variant.getEnd, None, r.logPValue, None, None, r.statistics.mapValues(n => n.toString))
+        val f = new Feature()
+        f.setStart(r.variant.getStart)
+        f.setEnd(r.variant.getEnd)
+        f.setSource("Gnocchi")
+        f.setFeatureType("SNP")
+        f.setAttributes(r.statistics.mapValues(n => n.toString))
+        f.setContig(r.variant.getContig)
+        f.setValue(r.logPValue)
+        f
+      })).toDF.write.parquet(args.associations)
     } else {
       associations.toDF.write.parquet(args.associations)
     }
