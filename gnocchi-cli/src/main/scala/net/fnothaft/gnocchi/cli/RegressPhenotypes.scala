@@ -108,7 +108,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
 
     // Load in genotype data
     val genotypeStates = loadGenotypes(sc)
-
     // Load in phenotype data
     val phenotypes = loadPhenotypes(sc)
 
@@ -128,7 +127,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     var parquetInputDestination = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/")
     parquetInputDestination = parquetInputDestination + "/parquetInputFiles/"
     val parquetFiles = new File(parquetInputDestination)
-
     val vcfPath = args.genotypes
     val posAndIds = GetVariantIds(sc, vcfPath)
     //    if (args.getIds) {
@@ -149,7 +147,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       val cmdLine: Array[String] = Array[String](vcfPath, parquetInputDestination)
       Vcf2ADAM(cmdLine).run(sc)
     }
-
     // Check for the genotypes file first.
     // val genoFile = new File(args.genotypes)
     // assert(genoFile.exists, "Path to genotypes VCF file is incorrect or the file is missing.")
@@ -221,10 +218,8 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     val genotypes = sqlContext.read.format("parquet").load(parquetInputDestination)
     //    val genotypes = sc.loadGenotypes(parquetInputDestination).toDF()
     // transform the parquet-formatted genotypes into a dataFrame of GenotypeStates and convert to Dataset.
-
     val genotypeStates = sqlContext
       .toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false)
-
     /*
     For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
     TODO: Write genotype filters for missingness, MAF, and genotyping rate
@@ -307,7 +302,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     }
     if (args.saveAsText) {
       associations.rdd.keyBy(_.logPValue).sortBy(_._1).map(r => "%s, %s, %s"
-        .format(r._2.variant.getContig.getContigName,
+        .format(r._2.variant.getContigName,
           r._2.variant.getStart, Math.pow(10, r._2.logPValue).toString))
         .saveAsTextFile(args.associations)
     } else {

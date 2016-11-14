@@ -70,6 +70,6 @@ class FillIn(protected val args: FillInArgs) extends BDGSparkCommand[FillInArgs]
       ploidy = args.ploidy)
 
     // save to disk
-    recomputedGenotypes.adamParquetSave(args.output)
+    recomputedGenotypes.save(args.output)
   }
 }

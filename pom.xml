@@ -50,7 +50,7 @@
   </issueManagement>
 
   <properties>
-    <adam.version>0.19.0</adam.version>
+    <adam.version>0.20.1-SNAPSHOT</adam.version>
     <avro.version>1.8.0</avro.version>
     <hadoop.version>2.6.0</hadoop.version>
     <!-- <hadoop.version>2.6.0-cdh5.8.0</hadoop.version> -->
@@ -344,14 +344,12 @@
       <dependency>
         <groupId>org.bdgenomics.adam</groupId>
         <artifactId>adam-core_${scala.version.prefix}</artifactId>
-        <!--<version>${adam.version}</version>-->
-        <version>0.19.0</version>
+        <version>${adam.version}</version>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.adam</groupId>
         <artifactId>adam-core_${scala.version.prefix}</artifactId>
-        <!--<version>${adam.version}</version>-->
-        <version>0.19.0</version>
+        <version>${adam.version}</version>
         <type>test-jar</type>
         <scope>test</scope>
       </dependency>

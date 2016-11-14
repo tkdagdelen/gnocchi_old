@@ -137,9 +137,7 @@ trait LogisticSiteRegression extends SiteRegression {
 
     // pack up the information into an Association object
     val variant = new Variant()
-    val contig = new Contig()
-    contig.setContigName(locus.referenceName)
-    variant.setContig(contig)
+    variant.setContigName(locus.referenceName)
     variant.setStart(locus.start)
     variant.setEnd(locus.end)
     variant.setAlternateAllele(altAllele)

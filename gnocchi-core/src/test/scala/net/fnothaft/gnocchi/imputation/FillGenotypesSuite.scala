@@ -20,14 +20,13 @@ import org.bdgenomics.adam.models.VariantContext
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.formats.avro._
 import scala.collection.JavaConverters._
+import org.bdgenomics.adam.rdd.variation.GenotypeRDD
 
 class FillGenotypesSuite extends GnocchiFunSuite {
 
   test("fill in a single variant context") {
     val v = Variant.newBuilder
-      .setContig(Contig.newBuilder
-        .setContigName("1")
-        .build())
+      .setContigName("1")
       .setStart(1000L)
       .setEnd(1001L)
       .setReferenceAllele("A")
@@ -64,16 +63,18 @@ class FillGenotypesSuite extends GnocchiFunSuite {
   sparkTest("fill in with diploid no call") {
     val s1 = ClassLoader.getSystemClassLoader.getResource("small1.vcf").getFile
     val s2 = ClassLoader.getSystemClassLoader.getResource("small2.vcf").getFile
-    val input = (sc.loadGenotypes(s1) ++ sc.loadGenotypes(s2)).cache
+    val s1rdd = sc.loadGenotypes(s1)
+    val s2rdd = sc.loadGenotypes(s2)
+    val input = s1rdd.rdd.union(s2rdd.rdd)
 
     assert(input.count === 4)
-    assert(input.map(_.getVariant).distinct.count === 3)
+    assert(input.map(_.getVariant).distinct.count === 2)
 
-    val newGts = FillGenotypes(input,
-      useNoCall = true).collect
-
+    val mergedInput = GenotypeRDD(input, s1rdd.sequences ++ s2rdd.sequences, s1rdd.samples ++ s2rdd.samples)
+    val newGts = FillGenotypes(mergedInput,
+      useNoCall = true).rdd.collect
     assert(newGts.length === 6)
-    assert(newGts.map(_.getVariant).toSet.size === 3)
+    assert(newGts.map(_.getVariant).toSet.size === 4)
     assert(newGts.count(_.getSampleId == "sample1") === 3)
     assert(newGts.count(_.getSampleId == "sample2") === 3)
     assert(newGts.map(_.getAlleles.size).forall(_ == 2))
@@ -83,16 +84,19 @@ class FillGenotypesSuite extends GnocchiFunSuite {
   sparkTest("fill in with haploid ref call") {
     val s1 = ClassLoader.getSystemClassLoader.getResource("small1.vcf").getFile
     val s2 = ClassLoader.getSystemClassLoader.getResource("small2.vcf").getFile
-    val input = (sc.loadGenotypes(s1) ++ sc.loadGenotypes(s2)).cache
+    val s1rdd = sc.loadGenotypes(s1)
+    val s2rdd = sc.loadGenotypes(s2)
+    val input = (s1rdd.rdd ++ s2rdd.rdd).cache
 
     assert(input.count === 4)
-    assert(input.map(_.getVariant).distinct.count === 3)
+    assert(input.map(_.getVariant).distinct.count === 2)
 
-    val newGts = FillGenotypes(input,
-      ploidy = 1).collect
+    val mergedInput = GenotypeRDD(input, s1rdd.sequences ++ s2rdd.sequences, s1rdd.samples ++ s2rdd.samples)
+    val newGts = FillGenotypes(mergedInput,
+      ploidy = 1).rdd.collect
 
     assert(newGts.length === 6)
-    assert(newGts.map(_.getVariant).toSet.size === 3)
+    assert(newGts.map(_.getVariant).toSet.size === 4)
     assert(newGts.count(_.getSampleId == "sample1") === 3)
     assert(newGts.count(_.getSampleId == "sample2") === 3)
     assert(newGts.map(_.getAlleles.size).count(_ == 2) === 4)
