@@ -18,7 +18,7 @@ package net.fnothaft.gnocchi.imputation
 import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.models.VariantContext
-import org.bdgenomics.adam.rdd.variation.GenotypeRDD
+import org.bdgenomics.adam.rdd.variant.GenotypeRDD
 import org.bdgenomics.formats.avro.{ Genotype, GenotypeAllele }
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -48,8 +48,6 @@ private[gnocchi] object FillGenotypes extends Serializable {
           .setVariant(vc.variant.variant)
           .setSampleId(s)
           .setAlleles(fillIn.asJava)
-          .setStart(vc.variant.getStart)
-          .setEnd(vc.variant.getEnd)
           .build()
       })
 
@@ -63,9 +61,9 @@ private[gnocchi] object FillGenotypes extends Serializable {
     // create list for filling in sites
     val fillIn = Seq.fill(ploidy)({
       if (useNoCall) {
-        GenotypeAllele.NoCall
+        GenotypeAllele.NO_CALL
       } else {
-        GenotypeAllele.Ref
+        GenotypeAllele.REF
       }
     })
 

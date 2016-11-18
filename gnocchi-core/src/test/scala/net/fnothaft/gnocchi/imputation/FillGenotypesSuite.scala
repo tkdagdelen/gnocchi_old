@@ -20,7 +20,7 @@ import org.bdgenomics.adam.models.VariantContext
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.formats.avro._
 import scala.collection.JavaConverters._
-import org.bdgenomics.adam.rdd.variation.GenotypeRDD
+import org.bdgenomics.adam.rdd.variant.GenotypeRDD
 
 class FillGenotypesSuite extends GnocchiFunSuite {
 
@@ -35,23 +35,23 @@ class FillGenotypesSuite extends GnocchiFunSuite {
     val vc = VariantContext.buildFromGenotypes(Seq(Genotype.newBuilder
       .setVariant(v)
       .setSampleId("sample1")
-      .setAlleles(Seq(GenotypeAllele.Ref, GenotypeAllele.Alt).asJava)
+      .setAlleles(Seq(GenotypeAllele.REF, GenotypeAllele.ALT).asJava)
       .build()))
 
     val newGts = FillGenotypes.fillInVC(vc,
       Set("sample1", "sample2", "sample3"),
-      Seq(GenotypeAllele.Ref))
+      Seq(GenotypeAllele.REF))
 
     assert(newGts.size === 3)
     newGts.foreach(gt => gt.getSampleId match {
       case "sample1" => {
         assert(gt.getAlleles.size === 2)
-        assert(gt.getAlleles.get(0) === GenotypeAllele.Ref)
-        assert(gt.getAlleles.get(1) === GenotypeAllele.Alt)
+        assert(gt.getAlleles.get(0) === GenotypeAllele.REF)
+        assert(gt.getAlleles.get(1) === GenotypeAllele.ALT)
       }
       case _ => {
         assert(gt.getAlleles.size === 1)
-        assert(gt.getAlleles.get(0) === GenotypeAllele.Ref)
+        assert(gt.getAlleles.get(0) === GenotypeAllele.REF)
       }
     })
     assert(newGts.map(_.getSampleId)
@@ -78,7 +78,7 @@ class FillGenotypesSuite extends GnocchiFunSuite {
     assert(newGts.count(_.getSampleId == "sample1") === 3)
     assert(newGts.count(_.getSampleId == "sample2") === 3)
     assert(newGts.map(_.getAlleles.size).forall(_ == 2))
-    assert(newGts.flatMap(_.getAlleles.asScala).count(_ == GenotypeAllele.NoCall) === 4)
+    assert(newGts.flatMap(_.getAlleles.asScala).count(_ == GenotypeAllele.NO_CALL) === 4)
   }
 
   sparkTest("fill in with haploid ref call") {
@@ -103,6 +103,6 @@ class FillGenotypesSuite extends GnocchiFunSuite {
     assert(newGts.map(_.getAlleles.size).count(_ == 1) === 2)
     assert(newGts.filter(_.getAlleles.size == 1)
       .flatMap(_.getAlleles.asScala)
-      .forall(_ == GenotypeAllele.Ref))
+      .forall(_ == GenotypeAllele.REF))
   }
 }

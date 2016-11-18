@@ -19,13 +19,13 @@ import java.io.{ File }
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
+import org.apache.parquet.hadoop.ParquetFileWriter
 import org.apache.spark.SparkContext._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.bdgenomics.adam.models.{ SequenceRecord, SequenceDictionary }
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.adam.rdd.feature.FeatureRDD
-import org.bdgenomics.adam.rdd.variation.GenotypeRDD
 import org.bdgenomics.formats.avro._
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
@@ -312,16 +312,23 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
           r._2.variant.getStart, Math.pow(10, r._2.logPValue).toString))
         .saveAsTextFile(args.associations)
     } else if (args.saveAsFeature) {
+      import collection.JavaConverters._
+      val emptyArr = List[String]().asJava
       import scala.collection.JavaConversions._
       val frdd: RDD[Feature] = associations.rdd.map(r => {
         val f = new Feature()
         f.setStart(r.variant.getStart)
         f.setEnd(r.variant.getEnd)
         f.setSource("Gnocchi")
+        f.setAliases(emptyArr)
+        f.setParentIds(emptyArr)
+        f.setNotes(emptyArr)
         f.setFeatureType("SNP")
         f.setAttributes(r.statistics.mapValues(n => n.toString))
         f.setContigName(r.variant.getContigName)
         f.setScore(r.logPValue)
+        f.setDbxrefs(List[Dbxref]().asJava)
+        f.setOntologyTerms(List[OntologyTerm]().asJava)
         f
       })
       frdd.cache()
