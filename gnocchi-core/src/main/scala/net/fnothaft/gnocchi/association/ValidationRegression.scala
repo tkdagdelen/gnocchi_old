@@ -34,23 +34,7 @@ trait ValidationRegression extends SiteRegression {
     val genoPhenoRdd = rdd.keyBy(_.sampleId).join(phenotypes.keyBy(_.sampleId))
     val Array(trainRdd, testRdd) = genoPhenoRdd.randomSplit(Array(0.9, 0.1))
 
-    val modelRdd = trainRdd
-      .map(kvv => {
-        // unpack the entry of the joined rdd into id and actual info
-        val (_, p) = kvv
-        // unpack the information into genotype state and pheno
-        val (gs, pheno) = p
-        // create contig and Variant objects and group by Variant
-        // pack up the information into an Association object
-        val variant = new Variant()
-        val contig = new Contig()
-        contig.setContigName(gs.contig)
-        variant.setContig(contig)
-        variant.setStart(gs.start)
-        variant.setEnd(gs.end)
-        variant.setAlternateAllele(gs.alt)
-        ((variant, pheno.phenotype), p)
-      }).groupByKey()
+    val modelRdd = format(trainRdd)
       .map(site => {
         val ((variant, pheno), observations) = site
 
@@ -68,24 +52,7 @@ trait ValidationRegression extends SiteRegression {
       })
     //    println("\n\n" + modelRdd.take(1).toList)
 
-    val temp = testRdd
-      .map(kvv => {
-        // unpack the entry of the joined rdd into id and actual info
-        val (sampleid, p) = kvv
-        // unpack the information into genotype state and pheno
-        val (gs, pheno) = p
-
-        // create contig and Variant objects and group by Variant
-        // pack up the information into an Association object
-        val variant = new Variant()
-        val contig = new Contig()
-        contig.setContigName(gs.contig)
-        variant.setContig(contig)
-        variant.setStart(gs.start)
-        variant.setEnd(gs.end)
-        variant.setAlternateAllele(gs.alt)
-        ((variant, pheno.phenotype), (sampleid, p))
-      }).groupByKey()
+    val temp = formatWithSample(testRdd)
     //    println("\n\n" + temp.take(1).toList)
     println("pre-join samples at a site: \n" + temp.take(5).toList)
     val temp2 = temp.join(modelRdd)
@@ -104,6 +71,69 @@ trait ValidationRegression extends SiteRegression {
       }).toArray, association), association)
     })
 
+  }
+
+  /*
+  Takes in an RDD of GenotypeStates, constructs the proper observations array for each site, and feeds it into
+  regressSite
+  */
+  final def apply2[T](rdd: RDD[GenotypeState],
+                      phenotypes: RDD[Phenotype[T]],
+                      scOption: Option[SparkContext] = None): RDD[(Array[(String, (Double, Double))], Association)] = {
+    val genoPhenoRdd = rdd.keyBy(_.sampleId).join(phenotypes.keyBy(_.sampleId))
+    val Array(trainRdd, testRdd) = genoPhenoRdd.randomSplit(Array(0.9, 0.1))
+
+    val modelRdd = super.apply(trainRdd)
+      .filter(varModel => {
+        val ((variant, phenotype), assoc) = varModel
+        assoc.statistics.nonEmpty
+    })
+    //    println("\n\n" + modelRdd.take(1).toList)
+
+    val bestModels = modelRdd.takeOrdered(5)(Ordering.by(_._2.logPValue))
+    val bestModelRdd = modelRdd.filter(_._2.logPValue < bestModels(4)._2.logPValue)
+
+    val temp = formatWithSample(testRdd)
+    //    println("\n\n" + temp.take(1).toList)
+    println("pre-join samples at a site: \n" + temp.take(5).toList)
+    val temp2 = temp.join(bestModelRdd)
+    println("Post-join samples and models at a site: \n" + temp2.take(0).toList)
+    println(temp2.take(1).toList)
+    temp2.map(site => {
+      val (key, value) = site
+      val (sampleObservations, association) = value
+      val (variant, phenotype) = key
+
+      (predictSite(sampleObservations.map(p => {
+        // unpack p
+        val (sampleid, (genotypeState, phenotype)) = p
+        // return genotype and phenotype in the correct form
+        (clipOrKeepState(genotypeState), phenotype.toDouble, sampleid)
+      }).toArray, association), association)
+    })
+
+  }
+
+  final protected def formatWithSample[T](genoPhenoRdd: RDD[(String, (GenotypeState, Phenotype[T]))]): RDD[((Variant, String), Iterable[(String, (GenotypeState, Phenotype[T]))])] = {
+    genoPhenoRdd
+      .map(kvv => {
+        // unpack the entry of the joined rdd into id and actual info
+        val (_, p) = kvv
+        // unpack the information into genotype state and pheno
+        val (gs, pheno) = p
+        // extract referenceAllele and phenotype and pack up with p, then group by key
+
+        // create contig and Variant objects and group by Variant
+        // pack up the information into an Association object
+        val variant = new Variant()
+        val contig = new Contig()
+        contig.setContigName(gs.contig)
+        variant.setContig(contig)
+        variant.setStart(gs.start)
+        variant.setEnd(gs.end)
+        variant.setAlternateAllele(gs.alt)
+        ((variant, pheno.phenotype), p)
+      }).groupByKey()
   }
 
   /**
