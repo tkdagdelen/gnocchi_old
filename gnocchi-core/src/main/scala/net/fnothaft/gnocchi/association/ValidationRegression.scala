@@ -95,10 +95,10 @@ trait ValidationRegression extends SiteRegression {
 
     val temp = formatWithSample(testRdd)
     //    println("\n\n" + temp.take(1).toList)
-    println("pre-join samples at a site: \n" + temp.take(5).toList)
+    //println("pre-join samples at a site: \n" + temp.take(5).toList)
     val temp2 = temp.join(bestModelRdd)
-    println("Post-join samples and models at a site: \n" + temp2.take(0).toList)
-    println(temp2.take(1).toList)
+    //println("Post-join samples and models at a site: \n" + temp2.take(0).toList)
+    //println(temp2.take(1).toList)
     temp2.map(site => {
       val (key, value) = site
       val (sampleObservations, association) = value
@@ -118,7 +118,7 @@ trait ValidationRegression extends SiteRegression {
     genoPhenoRdd
       .map(kvv => {
         // unpack the entry of the joined rdd into id and actual info
-        val (_, p) = kvv
+        val (sampleid, p) = kvv
         // unpack the information into genotype state and pheno
         val (gs, pheno) = p
         // extract referenceAllele and phenotype and pack up with p, then group by key
@@ -132,7 +132,7 @@ trait ValidationRegression extends SiteRegression {
         variant.setStart(gs.start)
         variant.setEnd(gs.end)
         variant.setAlternateAllele(gs.alt)
-        ((variant, pheno.phenotype), p)
+        ((variant, pheno.phenotype), (sampleid, p))
       }).groupByKey()
   }
 
