@@ -93,7 +93,7 @@ trait ValidationRegression extends SiteRegression {
 
     val bestModels = modelRdd.takeOrdered(3)(Ordering.by(_._2.logPValue))
     val bestModelRdd = modelRdd.filter(_._2.logPValue <= bestModels(2)._2.logPValue)
-    println("Number of items in modelRdd: " + modelRdd.collect().length)
+    println("Number of items in modelRdd, pre-filter: " + super.apply(trainRdd).collect().length)
     println("bestModels logPValues: \n" + bestModels.map(_._2.logPValue).toList)
     println("Filtering on logPValue: " + bestModels(2)._2.logPValue)
     println("Number of items in bestModelRdd: " + modelRdd.collect().length)
