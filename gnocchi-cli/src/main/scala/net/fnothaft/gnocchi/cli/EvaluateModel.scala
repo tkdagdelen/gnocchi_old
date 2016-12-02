@@ -45,10 +45,10 @@ object EvaluateModel extends BDGCommandCompanion {
 }
 
 class EvaluateModelArgs extends RegressPhenotypesArgs {
-  @Argument(required = true, metaVar = "SNPS", usage = "The IDs of the SNPs to evaluate the model on.", index = 4)
+  @Argument(required = false, metaVar = "SNPS", usage = "The IDs of the SNPs to evaluate the model on.", index = 4)
   var snps: String = _
 
-  @Argument(required = true, metaVar = "RESULTS", usage = "The location to save results to.", index = 5)
+  @Argument(required = false, metaVar = "RESULTS", usage = "The location to save results to.", index = 5)
   var results: String = _
 
   @Argument(required = false, metaVar = "ENSEMBLE_METHOD", usage = "The method used to combine results of SNPs. Options are MAX or AVG.", index = 6)
