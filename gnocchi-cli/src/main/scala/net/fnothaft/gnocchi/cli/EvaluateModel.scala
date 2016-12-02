@@ -16,6 +16,7 @@
 package net.fnothaft.gnocchi.cli
 
 import java.io.File
+
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
@@ -24,14 +25,15 @@ import org.apache.spark.sql.SQLContext
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.Argument
 import org.bdgenomics.adam.cli.Vcf2ADAM
-
 import breeze.numerics.exp
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import net.fnothaft.gnocchi.models.{ Association, Phenotype }
+import net.fnothaft.gnocchi.models.{Association, Phenotype}
 import org.apache.spark.sql.functions._
 import net.fnothaft.gnocchi.association.Ensembler
+
+import scala.collection.mutable.ListBuffer
 
 object EvaluateModel extends BDGCommandCompanion {
   val commandName = "EvaluateModel"
@@ -51,11 +53,24 @@ class EvaluateModelArgs extends RegressPhenotypesArgs {
 
   @Argument(required = false, metaVar = "ENSEMBLE_METHOD", usage = "The method used to combine results of SNPs. Options are MAX or AVG.", index = 6)
   var ensembleMethod: String = "AVG"
+
+  @Argument(required = false, metaVar = "ENSEMBLE_WEIGHTS", usage = "The weights to be used in the ensembler's weighted average call.", index = 7)
+  var ensembleWeights: String = "[]"
+
+  @Argument(required = false, metaVar = "KFOLD", usage = "The number of folds to split into using Monte Carlo CV.", index = 8)
+  var kfold = 10
+
 }
 
 class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkCommand[EvaluateModelArgs] {
   override val companion = EvaluateModel
-
+  var kcount = 0
+  val totalPZA = new ListBuffer[Double]
+  val totalPOA = new ListBuffer[Double]
+  val totalPPZAO = new ListBuffer[Double]
+  val totalPPOAZ = new ListBuffer[Double]
+  val totalPPZ = new ListBuffer[Double]
+  val totalPPO = new ListBuffer[Double]
   override def run(sc: SparkContext) {
 
     // Load in genotype data
@@ -66,12 +81,24 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
 
     // Load in phenotype data
     val phenotypes = regPheno.loadPhenotypes(sc)
+    while (kcount < args.kfold) {
+      // Perform analysis
+      val results = performEvaluation(genotypeStates, phenotypes, sc)
+      // Log the results
+      logResults(results, sc)
+      kcount += 1
+    }
+    logKFold()
+  }
 
-    // Perform analysis
-    val results = performEvaluation(genotypeStates, phenotypes, sc)
-
-    // Log the results
-    logResults(results, sc)
+  def logKFold(): Unit = {
+    println("-"*30)
+    println("Percent of samples with actual 0 phenotype: " + (totalPZA.sum/totalPZA.length).toString)
+    println("Percent of samples with actual 1 phenotype: " + (totalPOA.sum/totalPOA.length).toString)
+    println("Percent of samples predicted to be 0 but actually were 1:" + (totalPPZAO.sum/totalPPZAO.length).toString)
+    println(s"Percent of samples predicted to be 1 but actually were 0: " + (totalPPOAZ.sum/totalPPOAZ.length).toString)
+    println(s"Percent of samples predicted to be 0: " + (totalPPZ.sum/totalPPZ.length).toString)
+    println(s"Percent of samples predicted to be 1: " + (totalPPO.sum/totalPPO.length).toString)
   }
 
   def loadGenotypes(sc: SparkContext): Dataset[GenotypeState] = {
@@ -133,7 +160,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     val sqlContext = SQLContext.getOrCreate(sc)
     val contextOption = Option(sc)
     val evaluations = args.associationType match {
-      case "ADDITIVE_LOGISTIC" => AdditiveLogisticEvaluation(genotypeStates.rdd, phenotypes, contextOption)
+      case "ADDITIVE_LOGISTIC" => AdditiveLogisticEvaluation(genotypeStates.rdd, phenotypes, contextOption, k = args.kfold)
     }
     evaluations
   }
@@ -142,13 +169,15 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
   def logResults(results: RDD[(Array[(String, (Double, Double))], Association)],
                  sc: SparkContext) = {
     // save dataset
+    val outputFile = args.associations + "-" + kcount.toString
     val sqlContext = SQLContext.getOrCreate(sc)
-    val assocsFile = new File(args.associations)
+    val assocsFile = new File(outputFile)
     if (assocsFile.exists) {
       FileUtils.deleteDirectory(assocsFile)
     }
 
     val ensembleMethod = args.ensembleMethod
+    val ensembleWeights = args.ensembleWeights.split(",").map(x => x.toDouble)
 
     val resultsBySample = results.flatMap(ipaa => {
       var toRet = Array((ipaa._1(0)._1, (ipaa._1(0)._2._1, ipaa._1(0)._2._2, ipaa._2)))
@@ -161,7 +190,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
       // ensemble the SNP models for each sample
       .map(sample => {
         val (sampleId, snpArray) = sample
-        (sampleId, Ensembler(ensembleMethod, snpArray.toArray))
+        (sampleId, Ensembler(ensembleMethod, snpArray.toArray, ensembleWeights))
       })
 
     // compute final results
@@ -194,6 +223,13 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     val percentPredZero = numZeroPred / numSamples
     val percentPredOne = 1 - percentPredZero
 
+    totalPZA += percentZeroActual
+    totalPOA += percentOneActual
+    totalPPZAO += percentPredZeroActualOne
+    totalPPOAZ += percentPredOneActualZero
+    totalPPZ += percentPredZero
+    totalPPO += percentPredOne
+
     //      .map(ipaa => {
     //        val ((sampleId, (pred, actual)), assoc): ((String, (Double, Double)), Association) = ipaa
     //        (sampleId, (assoc, pred, actual))
@@ -214,25 +250,25 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
       assocs.map(r => "%s, %s, %s"
         .format(r.variant.getContig.getContigName,
           r.variant.getContig.getContigMD5, exp(r.logPValue).toString))
-        .saveAsTextFile(args.associations)
+        .saveAsTextFile(outputFile)
       //      valResults.map(r => "%s, %f"
       //        .format(r._1, r._2))
       //        .saveAsTextFile(evalArgs.results)
-      println(s"Percent of samples with actual 0 phenotype: $percentZeroActual")
-      println(s"Percent of samples with actual 1 phenotype: $percentOneActual")
-      println(s"Percent of samples predicted to be 0 but actually were 1: $percentPredZeroActualOne")
-      println(s"Percent of samples predicted to be 1 but actually were 0: $percentPredOneActualZero")
-      println(s"Percent of samples predicted to be 0: $percentPredZero")
-      println(s"Percent of samples predicted to be 1: $percentPredOne")
+      println(s"Percent of samples with actual unaffected phenotype: $percentZeroActual")
+      println(s"Percent of samples with actual affected phenotype: $percentOneActual")
+      println(s"Percent of samples predicted to be unaffected but actually were affected: $percentPredZeroActualOne")
+      println(s"Percent of samples predicted to be affected but actually were unaffected: $percentPredOneActualZero")
+      println(s"Percent of samples predicted to be unaffected: $percentPredZero")
+      println(s"Percent of samples predicted to be affected: $percentPredOne")
     } else {
-      sqlContext.createDataFrame(assocs).write.parquet(args.associations)
+      sqlContext.createDataFrame(assocs).write.parquet(outputFile)
       sqlContext.createDataFrame(resultsBySample).write.parquet(args.results)
-      println(s"Percent of samples with actual 0 phenotype: $percentZeroActual")
-      println(s"Percent of samples with actual 1 phenotype: $percentOneActual")
-      println(s"Percent of samples predicted to be 0 but actually were 1: $percentPredZeroActualOne")
-      println(s"Percent of samples predicted to be 1 but actually were 0: $percentPredOneActualZero")
-      println(s"Percent of samples predicted to be 0: $percentPredZero")
-      println(s"Percent of samples predicted to be 1: $percentPredOne")
+      println(s"Percent of samples with actual unaffected phenotype: $percentZeroActual")
+      println(s"Percent of samples with actual affected phenotype: $percentOneActual")
+      println(s"Percent of samples predicted to be unaffected but actually were affected: $percentPredZeroActualOne")
+      println(s"Percent of samples predicted to be affected but actually were unaffected: $percentPredOneActualZero")
+      println(s"Percent of samples predicted to be unaffected: $percentPredZero")
+      println(s"Percent of samples predicted to be affected: $percentPredOne")
     }
   }
 }

@@ -78,10 +78,11 @@ trait ValidationRegression extends SiteRegression {
   regressSite
   */
   final def apply[T](rdd: RDD[GenotypeState],
-                      phenotypes: RDD[Phenotype[T]],
-                      scOption: Option[SparkContext] = None): RDD[(Array[(String, (Double, Double))], Association)] = {
+                     phenotypes: RDD[Phenotype[T]],
+                     scOption: Option[SparkContext] = None,
+                     k: Double = 10): RDD[(Array[(String, (Double, Double))], Association)] = {
     val genoPhenoRdd = rdd.keyBy(_.sampleId).join(phenotypes.keyBy(_.sampleId))
-    val Array(trainRdd, testRdd) = genoPhenoRdd.randomSplit(Array(0.9, 0.1))
+    val Array(trainRdd, testRdd) = genoPhenoRdd.randomSplit(Array(1.0 - (1.0 / k), 1.0 / k))
 
     val modelRdd = super.apply(trainRdd)
       .filter(varModel => {
@@ -90,8 +91,11 @@ trait ValidationRegression extends SiteRegression {
     })
     //    println("\n\n" + modelRdd.take(1).toList)
 
+    println("Number of items in modelRdd: " + modelRdd.collect().length)
     val bestModels = modelRdd.takeOrdered(3)(Ordering.by(_._2.logPValue))
+    println("bestModels: \n" + bestModels.toList)
     val bestModelRdd = modelRdd.filter(_._2.logPValue < bestModels(2)._2.logPValue)
+    println("Number of items in bestModelRdd: " + modelRdd.collect().length)
 
     val temp = formatWithSample(testRdd)
     //    println("\n\n" + temp.take(1).toList)
