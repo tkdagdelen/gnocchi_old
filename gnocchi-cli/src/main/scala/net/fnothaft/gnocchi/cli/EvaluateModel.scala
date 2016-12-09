@@ -23,13 +23,13 @@ import net.fnothaft.gnocchi.sql.GnocchiContext._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.bdgenomics.utils.cli._
-import org.kohsuke.args4j.Argument
+import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import breeze.numerics.exp
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import net.fnothaft.gnocchi.models.{Association, Phenotype}
+import net.fnothaft.gnocchi.models.{ Association, Phenotype }
 import org.apache.spark.sql.functions._
 import net.fnothaft.gnocchi.association.Ensembler
 
@@ -59,6 +59,9 @@ class EvaluateModelArgs extends RegressPhenotypesArgs {
 
   @Argument(required = false, metaVar = "KFOLD", usage = "The number of folds to split into using Monte Carlo CV.", index = 8)
   var kfold = 10
+
+  @Args4jOption(required = false, name = "-numSNPs", usage = "The number of top SNPs to validate on.")
+  var numSnps = 5
 
 }
 
@@ -92,13 +95,13 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
   }
 
   def logKFold(): Unit = {
-    println("-"*30)
-    println("Percent of samples with actual 0 phenotype: " + (totalPZA.sum/totalPZA.length).toString)
-    println("Percent of samples with actual 1 phenotype: " + (totalPOA.sum/totalPOA.length).toString)
-    println("Percent of samples predicted to be 0 but actually were 1:" + (totalPPZAO.sum/totalPPZAO.length).toString)
-    println(s"Percent of samples predicted to be 1 but actually were 0: " + (totalPPOAZ.sum/totalPPOAZ.length).toString)
-    println(s"Percent of samples predicted to be 0: " + (totalPPZ.sum/totalPPZ.length).toString)
-    println(s"Percent of samples predicted to be 1: " + (totalPPO.sum/totalPPO.length).toString)
+    println("-" * 30)
+    println("Percent of samples with actual 0 phenotype: " + (totalPZA.sum / totalPZA.length).toString)
+    println("Percent of samples with actual 1 phenotype: " + (totalPOA.sum / totalPOA.length).toString)
+    println("Percent of samples predicted to be 0 but actually were 1:" + (totalPPZAO.sum / totalPPZAO.length).toString)
+    println(s"Percent of samples predicted to be 1 but actually were 0: " + (totalPPOAZ.sum / totalPPOAZ.length).toString)
+    println(s"Percent of samples predicted to be 0: " + (totalPPZ.sum / totalPPZ.length).toString)
+    println(s"Percent of samples predicted to be 1: " + (totalPPO.sum / totalPPO.length).toString)
   }
 
   def loadGenotypes(sc: SparkContext): Dataset[GenotypeState] = {
@@ -160,7 +163,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     val sqlContext = SQLContext.getOrCreate(sc)
     val contextOption = Option(sc)
     val evaluations = args.associationType match {
-      case "ADDITIVE_LOGISTIC" => AdditiveLogisticEvaluation(genotypeStates.rdd, phenotypes, contextOption, k = args.kfold)
+      case "ADDITIVE_LOGISTIC" => AdditiveLogisticEvaluation(genotypeStates.rdd, phenotypes, contextOption, k = args.kfold, n = args.numSnps)
     }
     evaluations
   }

@@ -80,19 +80,24 @@ trait ValidationRegression extends SiteRegression {
   final def apply[T](rdd: RDD[GenotypeState],
                      phenotypes: RDD[Phenotype[T]],
                      scOption: Option[SparkContext] = None,
-                     k: Double = 10): RDD[(Array[(String, (Double, Double))], Association)] = {
+                     k: Double = 10,
+                     n: Int = 5): RDD[(Array[(String, (Double, Double))], Association)] = {
     val genoPhenoRdd = rdd.keyBy(_.sampleId).join(phenotypes.keyBy(_.sampleId))
     val Array(trainRdd, testRdd) = genoPhenoRdd.randomSplit(Array(1.0 - (1.0 / k), 1.0 / k))
 
     val modelRdd = super.apply(trainRdd)
-    //   .filter(varModel => {
-    //     val ((variant, phenotype), assoc) = varModel
-    //     assoc.statistics.nonEmpty
-    // })
+      .filter(varModel => {
+        val ((variant, phenotype), assoc) = varModel
+        assoc.statistics.nonEmpty
+      })
     //    println("\n\n" + modelRdd.take(1).toList)
 
-    val bestModels = modelRdd.takeOrdered(3)(Ordering.by(_._2.logPValue))
-    val bestModelRdd = modelRdd.filter(_._2.logPValue <= bestModels(2)._2.logPValue)
+    val bestModels = modelRdd.takeOrdered(n)(Ordering.by(_._2.logPValue))
+    if (bestModels.length == 0) {
+      println("There were no non-empty association models remaining...")
+    }
+    val nthModelLPV = bestModels(bestModels.length - 1)._2.logPValue
+    val bestModelRdd = modelRdd.filter(_._2.logPValue <= nthModelLPV)
     println("Number of items in modelRdd, pre-filter: " + modelRdd.collect().length)
     println("bestModels logPValues: \n" + bestModels.map(_._2.logPValue).toList)
     println("Filtering on logPValue: " + bestModels(2)._2.logPValue)
