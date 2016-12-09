@@ -60,8 +60,8 @@ class EvaluateModelArgs extends RegressPhenotypesArgs {
   @Args4jOption(required = false, name = "KFOLD", usage = "The number of folds to split into using Monte Carlo CV.")
   var kfold = 10
 
-  @Args4jOption(required = false, name = "-numSNPs", usage = "The number of top SNPs to validate on.")
-  var numSnps = 5
+  @Args4jOption(required = false, name = "-numSNPs", usage = "The number of top SNPs to validate on. Default is 0 (perform validation on all SNPs).")
+  var numSnps = 0
 
 }
 
