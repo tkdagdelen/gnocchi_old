@@ -16,7 +16,6 @@
 package net.fnothaft.gnocchi.cli
 
 import java.io.{ File, OutputStreamWriter, PrintWriter }
-
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
@@ -30,6 +29,7 @@ import org.bdgenomics.utils.instrumentation.Metrics
 import org.bdgenomics.utils.instrumentation.{ MetricsListener, RecordedMetrics }
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 import scala.math.exp
+
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
