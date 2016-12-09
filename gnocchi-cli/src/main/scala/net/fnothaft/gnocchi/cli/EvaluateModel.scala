@@ -45,19 +45,19 @@ object EvaluateModel extends BDGCommandCompanion {
 }
 
 class EvaluateModelArgs extends RegressPhenotypesArgs {
-  @Argument(required = false, metaVar = "SNPS", usage = "The IDs of the SNPs to evaluate the model on.", index = 4)
+  @Argument(required = true, metaVar = "SNPS", usage = "The IDs of the SNPs to evaluate the model on.", index = 4)
   var snps: String = _
 
-  @Argument(required = false, metaVar = "RESULTS", usage = "The location to save results to.", index = 5)
+  @Argument(required = true, metaVar = "RESULTS", usage = "The location to save results to.", index = 5)
   var results: String = _
 
   @Argument(required = false, metaVar = "ENSEMBLE_METHOD", usage = "The method used to combine results of SNPs. Options are MAX or AVG.", index = 6)
   var ensembleMethod: String = "AVG"
 
-  @Argument(required = false, metaVar = "ENSEMBLE_WEIGHTS", usage = "The weights to be used in the ensembler's weighted average call.", index = 7)
-  var ensembleWeights: String = "[]"
+  @Args4jOption(required = false, name = "ENSEMBLE_WEIGHTS", usage = "The weights to be used in the ensembler's weighted average call.")
+  var ensembleWeights: String = ""
 
-  @Argument(required = false, metaVar = "KFOLD", usage = "The number of folds to split into using Monte Carlo CV.", index = 8)
+  @Args4jOption(required = false, name = "KFOLD", usage = "The number of folds to split into using Monte Carlo CV.")
   var kfold = 10
 
   @Args4jOption(required = false, name = "-numSNPs", usage = "The number of top SNPs to validate on.")
@@ -168,7 +168,14 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     evaluations
   }
 
-  // FIXME: Make this right
+  /**
+   * Logs results of an evaluation.
+   * FIXME: Make this right.
+   *
+   * @param results RDD of (Array[(id, (predicted, actual))], Association).
+   *                The association model contains the weights.
+   * @param sc the spark context to be used.
+   */
   def logResults(results: RDD[(Array[(String, (Double, Double))], Association)],
                  sc: SparkContext) = {
     // save dataset
@@ -180,7 +187,10 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     }
 
     val ensembleMethod = args.ensembleMethod
-    val ensembleWeights = args.ensembleWeights.split(",").map(x => x.toDouble)
+    var ensembleWeights = Array[Double]()
+    if (args.ensembleWeights != "") {
+      ensembleWeights = args.ensembleWeights.split(",").map(x => x.toDouble)
+    }
 
     val resultsBySample = results.flatMap(ipaa => {
       var toRet = Array((ipaa._1(0)._1, (ipaa._1(0)._2._1, ipaa._1(0)._2._2, ipaa._2)))

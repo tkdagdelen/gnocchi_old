@@ -21,10 +21,10 @@ object Ensembler extends Serializable {
 
   def apply(ensembleMethod: String, snpArray: Array[(Double, Double, Association)], weights: Array[Double] = Array.empty[Double]): (Double, Double) = {
     ensembleMethod match {
-      case "AVG"      => average(snpArray)
+      case "AVG" => average(snpArray)
       case "MAX_PROB" => maxProb(snpArray)
-      case "W_AVG"    => weightedAvg(snpArray, weights)
-      case _          => average(snpArray) //still call avg until other methods implemented
+      case "W_AVG" => weightedAvg(snpArray, weights)
+      case _     => average(snpArray) //still call avg until other methods implemented
     }
   }
 
@@ -39,7 +39,7 @@ object Ensembler extends Serializable {
   def maxProb(snpArray: Array[(Double, Double, Association)]): (Double, Double) = {
     var max = 0.0
     for (i <- snpArray.indices) {
-      if (snpArray(i)._1 > max) {
+      if ( snpArray(i)._1 > max ) {
         max = snpArray(i)._1
       }
     }
@@ -50,7 +50,7 @@ object Ensembler extends Serializable {
     assert(snpArray.length == weights.length, "Array length mismatch in weighted average ensembler.")
     var sm = 0.0
     for (i <- snpArray.indices) {
-      sm += weights(i) * snpArray(i)._1
+      sm += weights(i)*snpArray(i)._1
     }
     (sm / snpArray.length, snpArray(0)._2)
   }
