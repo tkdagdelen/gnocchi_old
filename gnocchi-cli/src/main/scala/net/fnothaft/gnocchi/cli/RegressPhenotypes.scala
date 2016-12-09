@@ -97,6 +97,9 @@ class RegressPhenotypesArgs extends Args4jBase {
 
   @Args4jOption(required = false, name = "-oneTwo", usage = "If cases are 1 and controls 2 instead of 0 and 1")
   var oneTwo = false
+
+  @Args4jOption(required = false, name = "-time", usage = "Prints out the timing information for RegressPhenotypes to commandline.")
+  var time = false
   //
   //  @Args4jOption(required = false, name = "-mapFile", usage = "Path to PLINK MAP file from which to get Varinat IDs.")
   //  var mapFile: String = null
@@ -123,7 +126,9 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // Perform analysis
     val associations = performAnalysis(genotypeStates, phenotypes, sc)
 
-    print_metrics_to_cmdline(metricsListener)
+    if (args.time) {
+      print_metrics_to_cmdline(metricsListener)
+    }
 
     // Log the results
     logResults(associations, sc)
