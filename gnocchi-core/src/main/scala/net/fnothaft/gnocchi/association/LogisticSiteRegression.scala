@@ -30,15 +30,13 @@ trait LogisticSiteRegression extends SiteRegression {
    * This method will perform logistic regression on a single site.
    *
    * @param observations An array containing tuples in which the first element is the coded genotype. The second is an Array[Double] representing the phenotypes, where the first element in the array is the phenotype to regress and the rest are to be treated as covariates. .
-   * @param locus        A ReferenceRegion object representing the location in the genome of the site.
-   * @param altAllele    A String specifying the value of the alternate allele that makes up the variant or SNP
+   * @param variant The variant that is being regressed.
    * @param phenotype    The name of the phenotype being regressed.
    * @return The Association object that results from the linear regression
    */
 
   def regressSite(observations: Array[(Double, Array[Double])],
-                  locus: ReferenceRegion,
-                  altAllele: String,
+                  variant: Variant,
                   phenotype: String): Association = {
 
     // transform the data in to design matrix and y matrix compatible with mllib's logistic regresion
@@ -95,7 +93,7 @@ trait LogisticSiteRegression extends SiteRegression {
         for (i <- observations.indices) {
           //          println(hessian)
           //          println("\n")
-          println("inside: " + logitArray(i))
+          //          println("inside: " + logitArray(i))
           //          pi = Math.exp(logitArray(i)) / (1 + Math.exp(logitArray(i)))
           pi = Math.exp(-logSumOfExponentials(Array(0.0, -logitArray(i))))
           hessian += -xixiT(i) * pi * (1.0 - pi)
@@ -103,10 +101,10 @@ trait LogisticSiteRegression extends SiteRegression {
         }
 
         // compute the update and check convergence
-        println(hessian)
+        //        println(hessian)
         update = -inv(hessian) * score
-        println(update)
-        println("\n")
+        //        println(update)
+        //        println("\n")
         if (max(abs(update)) <= tolerance) {
           convergence = true
         }
@@ -116,7 +114,7 @@ trait LogisticSiteRegression extends SiteRegression {
           beta(j) += update(j)
         }
 
-        println("LOG_REG - b: " + beta.toList)
+        //        println("LOG_REG - b: " + beta.toList)
         if (beta.exists(_.isNaN)) {
           println("LOG_REG - Broke on iteration: " + iter)
           iter = maxIter
@@ -124,7 +122,7 @@ trait LogisticSiteRegression extends SiteRegression {
       } catch {
         case error: breeze.linalg.MatrixSingularException => {
           singular = true
-          println("inside while loop: " + hessian)
+          //          println("inside while loop: " + hessian)
         }
       }
       iter += 1
@@ -136,13 +134,13 @@ trait LogisticSiteRegression extends SiteRegression {
     var matrixSingular = false
 
     // pack up the information into an Association object
-    val variant = new Variant()
-    val contig = new Contig()
-    contig.setContigName(locus.referenceName)
-    variant.setContig(contig)
-    variant.setStart(locus.start)
-    variant.setEnd(locus.end)
-    variant.setAlternateAllele(altAllele)
+    //    val variant = new Variant()
+    //    val contig = new Contig()
+    //    contig.setContigName(locus.referenceName)
+    //    variant.setContig(contig)
+    //    variant.setStart(locus.start)
+    //    variant.setEnd(locus.end)
+    //    variant.setAlternateAllele(altAllele)
 
     var toRet = new Association(null, null, -9.0, null)
     try {

@@ -33,8 +33,9 @@ import scala.math.exp
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{ DataFrame, Dataset }
-import net.fnothaft.gnocchi.models.{ Association, AuxEncoders, Phenotype }
+import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.functions.{ concat, lit }
+import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders }
 
 object RegressPhenotypes extends BDGCommandCompanion {
   val commandName = "regressPhenotypes"
@@ -246,6 +247,16 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     val genotypeStates =
       ParquetToDataFrameTimer.time { sqlContext.toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false) }
 
+    val genoStatesWithNames = genotypeStates.select(concat($"contig", lit("_"), $"end", lit("_"), $"alt") as "contig",
+      genotypeStates("start"),
+      genotypeStates("end"),
+      genotypeStates("ref"),
+      genotypeStates("alt"),
+      genotypeStates("sampleId"),
+      genotypeStates("genotypeState"),
+      genotypeStates("missingGenotypes"))
+    println(genoStatesWithNames.take(10).toList)
+
     /*
     For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
     TODO: Write genotype filters for missingness, MAF, and genotyping rate
@@ -265,7 +276,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // val finalGenotypeStates =
 
     // mind filter
-    genotypeStates.registerTempTable("genotypeStates")
+    genoStatesWithNames.registerTempTable("genotypeStates")
 
     val mindDF =
       MindDataFrameFilterTimer.time {
@@ -275,7 +286,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // TODO: Resolve with "IN" sql command once spark2.0 is integrated
     val filteredGenotypeStates =
       GenoDataFrameFilterTimer.time { genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*)) }
-
     filteredGenotypeStates.as[GenotypeState]
   }
 
