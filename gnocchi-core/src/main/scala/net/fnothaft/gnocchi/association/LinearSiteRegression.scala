@@ -21,7 +21,7 @@ import org.bdgenomics.adam.models.ReferenceRegion
 import scala.math.log10
 import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.SparkContext
-import org.bdgenomics.formats.avro.{ Variant }
+import org.bdgenomics.formats.avro.{ Contig, Variant }
 import collection.JavaConverters._
 
 trait LinearSiteRegression extends SiteRegression {
@@ -97,7 +97,9 @@ trait LinearSiteRegression extends SiteRegression {
     val emptyArr = List[String]().asJava
     variant.setNames(emptyArr)
     variant.setFiltersFailed(emptyArr)
-    val statistics = Map("rSquared" -> rSquared)
+    val statistics = Map("rSquared" -> rSquared,
+      "weights" -> beta,
+      "intercept" -> beta(0))
     val associationObject = new Association(variant, phenotype, logPValue, statistics)
 
     return associationObject
