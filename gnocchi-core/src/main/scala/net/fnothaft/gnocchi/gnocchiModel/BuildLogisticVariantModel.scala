@@ -17,8 +17,11 @@
 package net.fnothaft.gnocchi.gnocchiModel
 
 import net.fnothaft.gnocchi.association.LogisticSiteRegression
+import net.fnothaft.gnocchi.gnocchiModel.BuildAdditiveLinearVariantModel._
 import net.fnothaft.gnocchi.models.{ AdditiveLogisticVariantModel, Association, VariantModel }
 import org.bdgenomics.adam.models.ReferenceRegion
+import org.bdgenomics.formats.avro.Variant
+import collection.JavaConverters._
 
 object BuildAdditiveLogisticVariantModel extends BuildVariantModel with LogisticSiteRegression with AdditiveVariant {
 
@@ -28,7 +31,15 @@ object BuildAdditiveLogisticVariantModel extends BuildVariantModel with Logistic
               phenotype: String): Association = {
 
     val clippedObs = arrayClipOrKeepState(observations)
-    val assoc = regressSite(clippedObs, locus, altAllele, phenotype)
+    val variant = new Variant()
+    variant.setContigName(locus.referenceName)
+    variant.setStart(locus.start)
+    variant.setEnd(locus.end)
+    variant.setAlternateAllele(altAllele)
+    val emptyArr = List[String]().asJava
+    variant.setNames(emptyArr)
+    variant.setFiltersFailed(emptyArr)
+    val assoc = regressSite(clippedObs, variant, phenotype)
     assoc.statistics = assoc.statistics + ("numSamples" -> observations.length)
     assoc
   }

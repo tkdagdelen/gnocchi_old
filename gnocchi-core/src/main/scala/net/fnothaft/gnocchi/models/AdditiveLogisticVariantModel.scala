@@ -20,6 +20,7 @@ import net.fnothaft.gnocchi.association.{ AdditiveLogisticAssociation }
 import net.fnothaft.gnocchi.gnocchiModel.BuildAdditiveLogisticVariantModel
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.Variant
+import collection.JavaConverters._
 
 class AdditiveLogisticVariantModel extends LogisticVariantModel {
 
@@ -32,7 +33,15 @@ class AdditiveLogisticVariantModel extends LogisticVariantModel {
              phenotype: String): Unit = {
 
     val clippedObs = BuildAdditiveLogisticVariantModel.arrayClipOrKeepState(observations)
-    val assoc = AdditiveLogisticAssociation.regressSite(clippedObs, locus, altAllele, phenotype)
+    val variant = new Variant()
+    variant.setContigName(locus.referenceName)
+    variant.setStart(locus.start)
+    variant.setEnd(locus.end)
+    variant.setAlternateAllele(altAllele)
+    val emptyArr = List[String]().asJava
+    variant.setNames(emptyArr)
+    variant.setFiltersFailed(emptyArr)
+    val assoc = AdditiveLogisticAssociation.regressSite(clippedObs, variant, phenotype)
     if (assoc.statistics.nonEmpty) {
       assoc.statistics = assoc.statistics + ("numSamples" -> observations.length)
       val numNewSamples = observations.length

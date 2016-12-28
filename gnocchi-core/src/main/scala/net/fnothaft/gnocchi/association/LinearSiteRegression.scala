@@ -21,22 +21,19 @@ import org.bdgenomics.adam.models.ReferenceRegion
 import scala.math.log10
 import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.SparkContext
-import org.bdgenomics.formats.avro.{ Contig, Variant }
-import collection.JavaConverters._
+import org.bdgenomics.formats.avro.Variant
 
 trait LinearSiteRegression extends SiteRegression {
 
   /**
    * This method will perform linear regression on a single site.
    * @param observations An array containing tuples in which the first element is the coded genotype. The second is an Array[Double] representing the phenotypes, where the first element in the array is the phenotype to regress and the rest are to be treated as covariates. .
-   * @param locus A ReferenceRegion object representing the location in the genome of the site.
-   * @param altAllele A String specifying the value of the alternate allele that makes up the variant or SNP
+   * @param variant The variant that is being regressed.
    * @param phenotype The name of the phenotype being regressed.
    * @return The Association object that results from the linear regression
    */
   def regressSite(observations: Array[(Double, Array[Double])],
-                  locus: ReferenceRegion,
-                  altAllele: String,
+                  variant: Variant,
                   phenotype: String): Association = {
     // class for ols: org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
     // see http://commons.apache.org/proper/commons-math/javadocs/api-3.6.1/org/apache/commons/math3/stat/regression/OLSMultipleLinearRegression.html
@@ -89,14 +86,14 @@ trait LinearSiteRegression extends SiteRegression {
     val logPValue = log10(pvalue)
 
     // pack up the information into an Association object
-    val variant = new Variant()
-    variant.setContigName(locus.referenceName)
-    variant.setStart(locus.start)
-    variant.setEnd(locus.end)
-    variant.setAlternateAllele(altAllele)
-    val emptyArr = List[String]().asJava
-    variant.setNames(emptyArr)
-    variant.setFiltersFailed(emptyArr)
+    //    val variant = new Variant()
+    //    variant.setContigName(locus.referenceName)
+    //    variant.setStart(locus.start)
+    //    variant.setEnd(locus.end)
+    //    variant.setAlternateAllele(altAllele)
+    //    val emptyArr = List[String]().asJava
+    //    variant.setNames(emptyArr)
+    //    variant.setFiltersFailed(emptyArr)
     val statistics = Map("rSquared" -> rSquared,
       "weights" -> beta,
       "intercept" -> beta(0))

@@ -19,6 +19,8 @@ import breeze.linalg.{ DenseVector => BreezeDense }
 import net.fnothaft.gnocchi.association.AdditiveLinearAssociation
 import net.fnothaft.gnocchi.gnocchiModel.BuildAdditiveLinearVariantModel
 import org.bdgenomics.adam.models.ReferenceRegion
+import org.bdgenomics.formats.avro.Variant
+import collection.JavaConverters._
 
 class AdditiveLinearVariantModel extends LinearVariantModel {
 
@@ -31,7 +33,15 @@ class AdditiveLinearVariantModel extends LinearVariantModel {
              phenotype: String): Unit = {
 
     val clippedObs = BuildAdditiveLinearVariantModel.arrayClipOrKeepState(observations)
-    val assoc = AdditiveLinearAssociation.regressSite(clippedObs, locus, altAllele, phenotype)
+    val variant = new Variant()
+    variant.setContigName(locus.referenceName)
+    variant.setStart(locus.start)
+    variant.setEnd(locus.end)
+    variant.setAlternateAllele(altAllele)
+    val emptyArr = List[String]().asJava
+    variant.setNames(emptyArr)
+    variant.setFiltersFailed(emptyArr)
+    val assoc = AdditiveLinearAssociation.regressSite(clippedObs, variant, phenotype)
     if (assoc.statistics.nonEmpty) {
       assoc.statistics = assoc.statistics + ("numSamples" -> observations.length)
       val numNewSamples = observations.length
