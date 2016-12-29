@@ -43,7 +43,21 @@ trait ValidationRegression extends SiteRegression {
     val rdds = genoPhenoRdd.randomSplit(Array(.9, .1))
     val trainRdd = rdds(0)
     val testRdd = rdds(1)
-    crossValResults(0) = applyRegression(trainRdd, testRdd, phenotypes)
+
+    val regressionResults = applyRegression(trainRdd, testRdd, phenotypes)
+
+    crossValResults(0) = regressionResults.map(site => {
+      val (key, value) = site
+      val (sampleObservations, association) = value
+      val (variant, phenotype) = key
+
+      (predictSite(sampleObservations.map(p => {
+        // unpack p
+        val (sampleid, (genotypeState, phenotype)) = p
+        // return genotype and phenotype in the correct form
+        (clipOrKeepState(genotypeState), phenotype.toDouble, sampleid)
+      }).toArray, association), association)
+    })
 
     //    if (k != 1) {
     //      if (monte) {
@@ -158,7 +172,7 @@ trait ValidationRegression extends SiteRegression {
 
   def applyRegression[T](trainRdd: RDD[(String, (GenotypeState, Phenotype[T]))],
                          testRdd: RDD[(String, (GenotypeState, Phenotype[T]))],
-                         phenotypes: RDD[Phenotype[T]]): RDD[(Array[(String, (Double, Double))], Association)] = {
+                         phenotypes: RDD[Phenotype[T]]): RDD[((Variant, String), (Iterable[(String, (GenotypeState, Phenotype[T]))], Association))] = {
     println("TrainRDD count: " + trainRdd.count)
     val temp01 = trainRdd
       .map(kvv => {
@@ -205,19 +219,7 @@ trait ValidationRegression extends SiteRegression {
         ((variant, pheno.phenotype), (sampleid, p))
       }).groupByKey()
     //    println("\n\n" + temp.take(1).toList)
-    val temp2 = temp.join(modelRdd)
-    temp2.map(site => {
-      val (key, value) = site
-      val (sampleObservations, association) = value
-      val (variant, phenotype) = key
-
-      (predictSite(sampleObservations.map(p => {
-        // unpack p
-        val (sampleid, (genotypeState, phenotype)) = p
-        // return genotype and phenotype in the correct form
-        (clipOrKeepState(genotypeState), phenotype.toDouble, sampleid)
-      }).toArray, association), association)
-    })
+    temp.join(modelRdd)
   }
 
   /**
