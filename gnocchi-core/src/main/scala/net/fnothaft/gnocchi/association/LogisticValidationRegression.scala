@@ -1,5 +1,5 @@
 /**
- * Copyright 2015 Taner Dagdelen
+ * Copyright 2016 Taner Dagdelen
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package net.fnothaft.gnocchi.association
 import breeze.numerics.log10
 import breeze.linalg._
 import breeze.numerics._
-import net.fnothaft.gnocchi.models.Association
+import net.fnothaft.gnocchi.models.{Association, GenotypeState, Phenotype}
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.classification.LogisticRegression
@@ -27,22 +27,67 @@ import org.bdgenomics.adam.models.ReferenceRegion
 import org.apache.spark.ml.classification.LogisticRegressionModel
 import org.apache.spark.sql.SQLContext
 import org.apache.commons.math3.special.Gamma
-import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.apache.spark.rdd.RDD
+import org.bdgenomics.formats.avro.{Contig, Variant}
 
 trait LogisticValidationRegression extends ValidationRegression with LogisticSiteRegression {
+
+  /*
+  Takes in an RDD of GenotypeStates, constructs the proper observations array for each site, and feeds it into
+  regressSite
+  */
+  def apply[T](rdd: RDD[GenotypeState],
+               phenotypes: RDD[Phenotype[T]],
+               scOption: Option[SparkContext] = None,
+               k: Int = 1,
+               n: Int = 1,
+               sc: SparkContext,
+               monte: Boolean = false,
+               threshold: Double = 0.5): Array[RDD[(Array[(String, (Double, Double))], Association)]] = {
+    val genoPhenoRdd = rdd.keyBy(_.sampleId).join(phenotypes.keyBy(_.sampleId))
+    val crossValResults = new Array[RDD[(Array[(String, (Double, Double))], Association)]](k)
+
+    // 1 random 90/10 split
+    println("\n\n\n\n\n\n\n k=1, n=1 \n\n\n\n\n\n\n")
+    val rdds = genoPhenoRdd.randomSplit(Array(.9, .1))
+    val trainRdd = rdds(0)
+    val testRdd = rdds(1)
+
+    val regressionResults = applyRegression(trainRdd, testRdd, phenotypes)
+
+    crossValResults(0) = regressionResults.map(site => {
+      val (key, value) = site
+      val (sampleObservations, association) = value
+      val (variant, phenotype) = key
+
+      (predictSiteWithThreshold(sampleObservations.map(p => {
+        // unpack p
+        val (sampleid, (genotypeState, phenotype)) = p
+        // return genotype and phenotype in the correct form
+        (clipOrKeepState(genotypeState), phenotype.toDouble, sampleid)
+      }).toArray, association, threshold), association)
+    })
+    crossValResults
+  }
 
   /**
    * This method will predict the phenotype given a certain site, given the association results
    *
    * @param sampleObservations An array containing tuples in which the first element is the coded genotype.
-   *                           The second is an Array[Double] representing the phenotypes, where the first element in the array is the phenotype to regress and the rest are to be treated as covariates.
-   *                          The third is the sampleid.
+   *                           The second is an Array[Double] representing the phenotypes, where the first
+   *                           element in the array is the phenotype to regress and the rest are to be treated as
+   *                           covariates. The third is the sampleid.
    * @param association  An Association object that specifies the model trained for this locus
    * @return An array of results with the model applied to the observations
    */
 
   def predictSite(sampleObservations: Array[(Double, Array[Double], String)],
                   association: Association): Array[(String, (Double, Double))] = {
+    predictSiteWithThreshold(sampleObservations, association, 0.5)
+  }
+
+  def predictSiteWithThreshold(sampleObservations: Array[(Double, Array[Double], String)],
+                  association: Association, threshold: Double): Array[(String, (Double, Double))] = {
     // transform the data in to design matrix and y matrix compatible with mllib's logistic regresion
     val observationLength = sampleObservations(0)._2.length
     val numObservations = sampleObservations.length
@@ -70,16 +115,17 @@ trait LogisticValidationRegression extends ValidationRegression with LogisticSit
 
     // TODO: Check that this actually matches the samples with the right results.
     // receive 0/1 results from datapoints and model
-    val results = predict(lp, b)
+    val results = predict(lp, b, threshold)
     samples zip results
   }
 
-  def predict(lpArray: Array[LabeledPoint], b: Array[Double]): Array[(Double, Double)] = {
+  def predict(lpArray: Array[LabeledPoint], b: Array[Double], threshold: Double): Array[(Double, Double)] = {
     val expitResults = expit(lpArray, b)
     // (Predicted, Actual)
     val predictions = new Array[(Double, Double)](expitResults.length)
     for (j <- predictions.indices) {
-      predictions(j) = (lpArray(j).label, Math.round(expitResults(j)))
+      val res = expitResults(j)
+      predictions(j) = (lpArray(j).label, if (expitResults(j) >= threshold) 1.0 else 0.0)
     }
     predictions
   }
@@ -101,4 +147,16 @@ object AdditiveLogisticEvaluation extends LogisticValidationRegression with Addi
 
 object DominantLogisticEvaluation extends LogisticValidationRegression with Dominant {
   val regressionName = "dominantLogisticEvaluation"
+}
+
+object AdditiveLogisticMonteCarloEvaluation extends LogisticValidationRegression with Additive with MonteCarlo {
+  val regressionName = "additiveLogisticEvaluation"
+}
+
+object AdditiveLogisticKfoldsEvaluation extends LogisticValidationRegression with Additive with kfolds {
+  val regressionName = "additiveLogisticEvaluation"
+}
+
+object AdditiveLogisticProgressiveEvaluation extends LogisticValidationRegression with Additive with Progressive {
+  val regressionName = "additiveLogisticEvaluation"
 }
