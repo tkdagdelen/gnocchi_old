@@ -136,7 +136,7 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     val regressionResult = assocs.collect()
 
     for (result <- regressionResult) {
-      println("SNP Name: " + result.variant.getContig.getContigName)
+      println("SNP Name: " + result.variant.getContigName)
       println("SNP Locus: " + result.variant.getStart + "-" + result.variant.getEnd)
       println("Phenotypes: " + result.phenotype)
       println("logPValue: " + result.logPValue)

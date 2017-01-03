@@ -22,7 +22,8 @@ import net.fnothaft.gnocchi.models.Association
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.bdgenomics.adam.models.ReferenceRegion
-import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.bdgenomics.formats.avro.{ Variant }
+import collection.JavaConverters._
 
 trait LogisticSiteRegression extends SiteRegression {
 
@@ -136,13 +137,15 @@ trait LogisticSiteRegression extends SiteRegression {
     var matrixSingular = false
 
     // pack up the information into an Association object
+
     val variant = new Variant()
-    val contig = new Contig()
-    contig.setContigName(locus.referenceName)
-    variant.setContig(contig)
+    variant.setContigName(locus.referenceName)
     variant.setStart(locus.start)
     variant.setEnd(locus.end)
     variant.setAlternateAllele(altAllele)
+    val emptyArr = List[String]().asJava
+    variant.setNames(emptyArr)
+    variant.setFiltersFailed(emptyArr)
 
     var toRet = new Association(null, null, -9.0, null)
     try {

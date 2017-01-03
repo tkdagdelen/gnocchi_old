@@ -19,10 +19,13 @@ import java.io.{ File }
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
+import org.apache.parquet.hadoop.ParquetFileWriter
 import org.apache.spark.SparkContext._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
+import org.bdgenomics.adam.models.{ SequenceRecord, SequenceDictionary }
 import org.bdgenomics.adam.rdd.ADAMContext._
+import org.bdgenomics.adam.rdd.feature.FeatureRDD
 import org.bdgenomics.formats.avro._
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
@@ -94,6 +97,9 @@ class RegressPhenotypesArgs extends Args4jBase {
 
   @Args4jOption(required = false, name = "-oneTwo", usage = "If cases are 1 and controls 2 instead of 0 and 1")
   var oneTwo = false
+
+  @Args4jOption(required = false, name = "-saveAsFeatures", usage = "Chooses to save as features. If not selected, saves to Parquet.")
+  var saveAsFeature = false
   //
   //  @Args4jOption(required = false, name = "-mapFile", usage = "Path to PLINK MAP file from which to get Varinat IDs.")
   //  var mapFile: String = null
@@ -108,7 +114,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
 
     // Load in genotype data
     val genotypeStates = loadGenotypes(sc)
-
     // Load in phenotype data
     val phenotypes = loadPhenotypes(sc)
 
@@ -128,7 +133,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     var parquetInputDestination = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/")
     parquetInputDestination = parquetInputDestination + "/parquetInputFiles/"
     val parquetFiles = new File(parquetInputDestination)
-
     val vcfPath = args.genotypes
     val posAndIds = GetVariantIds(sc, vcfPath)
     //    if (args.getIds) {
@@ -149,7 +153,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       val cmdLine: Array[String] = Array[String](vcfPath, parquetInputDestination)
       Vcf2ADAM(cmdLine).run(sc)
     }
-
     // Check for the genotypes file first.
     // val genoFile = new File(args.genotypes)
     // assert(genoFile.exists, "Path to genotypes VCF file is incorrect or the file is missing.")
@@ -221,10 +224,8 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     val genotypes = sqlContext.read.format("parquet").load(parquetInputDestination)
     //    val genotypes = sc.loadGenotypes(parquetInputDestination).toDF()
     // transform the parquet-formatted genotypes into a dataFrame of GenotypeStates and convert to Dataset.
-
     val genotypeStates = sqlContext
       .toGenotypeStateDataFrame(genotypes, args.ploidy, sparse = false)
-
     /*
     For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
     TODO: Write genotype filters for missingness, MAF, and genotyping rate
@@ -307,9 +308,36 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     }
     if (args.saveAsText) {
       associations.rdd.keyBy(_.logPValue).sortBy(_._1).map(r => "%s, %s, %s"
-        .format(r._2.variant.getContig.getContigName,
+        .format(r._2.variant.getContigName,
           r._2.variant.getStart, Math.pow(10, r._2.logPValue).toString))
         .saveAsTextFile(args.associations)
+    } else if (args.saveAsFeature) {
+      import collection.JavaConverters._
+      val emptyArr = List[String]().asJava
+      import scala.collection.JavaConversions._
+      val frdd: RDD[Feature] = associations.rdd.map(r => {
+        val f = new Feature()
+        f.setStart(r.variant.getStart)
+        f.setEnd(r.variant.getEnd)
+        f.setSource("Gnocchi")
+        f.setAliases(emptyArr)
+        f.setParentIds(emptyArr)
+        f.setNotes(emptyArr)
+        f.setFeatureType("SNP")
+        f.setAttributes(r.statistics.mapValues(n => n.toString))
+        f.setContigName(r.variant.getContigName)
+        f.setScore(r.logPValue)
+        f.setDbxrefs(List[Dbxref]().asJava)
+        f.setOntologyTerms(List[OntologyTerm]().asJava)
+        f
+      })
+      frdd.cache()
+      // aggregate to create the sequence dictionary
+      val sd = new SequenceDictionary(frdd.map(r => SequenceRecord(r.getContigName, 1L))
+        .distinct
+        .collect
+        .toVector)
+      FeatureRDD(frdd, sd).save(args.associations, false)
     } else {
       associations.toDF.write.parquet(args.associations)
     }
