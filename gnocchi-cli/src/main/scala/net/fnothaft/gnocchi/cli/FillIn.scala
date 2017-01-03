@@ -23,7 +23,6 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.SparkContext
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.adam.rdd.ADAMContext._
-import org.bdgenomics.adam.rdd.BroadcastRegionJoin
 import org.bdgenomics.formats.avro._
 import org.bdgenomics.utils.misc.HadoopUtil
 import org.bdgenomics.utils.cli._
