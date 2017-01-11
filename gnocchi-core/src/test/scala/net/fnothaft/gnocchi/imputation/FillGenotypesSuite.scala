@@ -68,13 +68,13 @@ class FillGenotypesSuite extends GnocchiFunSuite {
     val input = s1rdd.rdd.union(s2rdd.rdd)
 
     assert(input.count === 4)
-    assert(input.map(_.getVariant).distinct.count === 2)
+    assert(input.map(_.getVariant).distinct.count === 3)
 
     val mergedInput = GenotypeRDD(input, s1rdd.sequences ++ s2rdd.sequences, s1rdd.samples ++ s2rdd.samples)
     val newGts = FillGenotypes(mergedInput,
       useNoCall = true).rdd.collect
     assert(newGts.length === 6)
-    assert(newGts.map(_.getVariant).toSet.size === 4)
+    assert(newGts.map(_.getVariant).toSet.size === 3)
     assert(newGts.count(_.getSampleId == "sample1") === 3)
     assert(newGts.count(_.getSampleId == "sample2") === 3)
     assert(newGts.map(_.getAlleles.size).forall(_ == 2))
@@ -89,14 +89,14 @@ class FillGenotypesSuite extends GnocchiFunSuite {
     val input = (s1rdd.rdd ++ s2rdd.rdd).cache
 
     assert(input.count === 4)
-    assert(input.map(_.getVariant).distinct.count === 2)
+    assert(input.map(_.getVariant).distinct.count === 3)
 
     val mergedInput = GenotypeRDD(input, s1rdd.sequences ++ s2rdd.sequences, s1rdd.samples ++ s2rdd.samples)
     val newGts = FillGenotypes(mergedInput,
       ploidy = 1).rdd.collect
 
     assert(newGts.length === 6)
-    assert(newGts.map(_.getVariant).toSet.size === 4)
+    assert(newGts.map(_.getVariant).toSet.size === 3)
     assert(newGts.count(_.getSampleId == "sample1") === 3)
     assert(newGts.count(_.getSampleId == "sample2") === 3)
     assert(newGts.map(_.getAlleles.size).count(_ == 2) === 4)
