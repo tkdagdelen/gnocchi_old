@@ -245,6 +245,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     // compute final results
     val resArray = resultsBySample.collect
     val numSamples = resArray.length
+    var totalCorrect = 0.0
     var numZeroActual = 0.0
     var numZeroPred = 0.0
     var numZeroPredOneActual = 0.0
@@ -257,11 +258,14 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
         if (pred == 1.0) {
           numOnePredZeroActual += 1.0
         } else {
+          totalCorrect += 1.0
           numZeroPred += 1.0
         }
       } else {
         if (pred == 0.0) {
           numZeroPredOneActual += 1.0
+        } else {
+          totalCorrect += 1.0
         }
       }
     }
@@ -271,6 +275,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     val percentPredOneActualZero = numOnePredZeroActual / numZeroActual
     val percentPredZero = numZeroPred / numSamples
     val percentPredOne = 1 - percentPredZero
+    val accuracy = totalCorrect / numSamples
 
     evalResult.totalPZA += percentZeroActual
     evalResult.totalPOA += percentOneActual
@@ -279,6 +284,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     evalResult.totalPPZ += percentPredZero
     evalResult.totalPPO += percentPredOne
     evalResult.numSamples = numTrainingSamples
+    evalResult.totalCorrect += accuracy
     evalResult
   }
 
@@ -328,6 +334,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     //      println(s"Percent of samples predicted to be affected: $percentPredOne")
     //    }
     //  }
+
     val sumEval = new EvalResult
     var splitType = "Fold"
     if (args.numProgressiveSplits > 1) {
@@ -353,12 +360,16 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
       println(s"Percent of samples predicted to be unaffected: $ppz")
       val ppo = result.totalPPO.head
       println(s"Percent of samples predicted to be affected: $ppo")
+      val accuracy = result.totalCorrect.head
+      println(s"Accuracy of the model: $accuracy")
+
       sumEval.totalPZA += result.totalPZA.head
       sumEval.totalPOA += result.totalPOA.head
       sumEval.totalPPZAO += result.totalPPZAO.head
       sumEval.totalPPOAZ += result.totalPPOAZ.head
       sumEval.totalPPZ += result.totalPPZ.head
       sumEval.totalPPO += result.totalPPO.head
+      sumEval.totalCorrect += result.totalCorrect.head
     }
     if (splitType == "Fold") {
       val avgPZA = sumEval.totalPZA.sum / results.length
@@ -367,6 +378,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
       val avgPPOAZ = sumEval.totalPPOAZ.sum / results.length
       val avgPPZ = sumEval.totalPPZ.sum / results.length
       val avgPPO = sumEval.totalPPO.sum / results.length
+      val avgAccuracy = sumEval.totalCorrect.sum / results.length
 
       println("\n------------------------------- Average ---------------------------------------------\n")
       println(s"Average percent of samples with actual unaffected phenotype: $avgPZA")
@@ -375,6 +387,7 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
       println(s"Average percent of samples predicted to be affected but actually were unaffected: $avgPPOAZ")
       println(s"Average percent of samples predicted to be unaffected: $avgPPZ")
       println(s"Avergae percent of samples predicted to be affected: $avgPPO")
+      println(s"Average accuracy: $avgAccuracy")
     }
 
   }
@@ -388,5 +401,6 @@ class EvalResult {
   val totalPPOAZ = new ListBuffer[Double]
   val totalPPZ = new ListBuffer[Double]
   val totalPPO = new ListBuffer[Double]
+  val totalCorrect = new ListBuffer[Double]
 }
 
