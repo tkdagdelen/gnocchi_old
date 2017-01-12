@@ -280,8 +280,8 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     val percentPredZero = numZeroPred / numSamples
     val percentPredOne = 1 - percentPredZero
     val accuracy = totalCorrect / numSamples
-    val ppv = (numZeroPredZeroActual + numOnePredOneActual) / (numSamples - numZeroPred)
-    val npv = (numZeroPredOneActual + numOnePredZeroActual) / (numZeroPred)
+    val ppv = numOnePredOneActual / (numSamples - numZeroPred)
+    val npv = numZeroPredZeroActual / (numZeroPred)
 
     evalResult.totalPZA += percentZeroActual
     evalResult.totalPOA += percentOneActual
