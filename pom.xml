@@ -6,7 +6,7 @@
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
     <version>7</version>
-    <relativePath />
+    <relativePath/>
   </parent>
 
   <groupId>net.fnothaft</groupId>
@@ -18,6 +18,7 @@
   <modules>
     <module>gnocchi-core</module>
     <module>gnocchi-cli</module>
+    <module>Gnocchi-test</module>
   </modules>
 
   <licenses>
@@ -49,21 +50,27 @@
   </issueManagement>
 
   <properties>
-    <adam.version>0.19.0</adam.version>
+    <adam.version>0.20.1-SNAPSHOT</adam.version>
     <avro.version>1.8.0</avro.version>
     <hadoop.version>2.6.0</hadoop.version>
+    <!-- <hadoop.version>2.6.0-cdh5.8.0</hadoop.version> -->
     <java.version>1.8</java.version>
-    <parquet.version>1.8.1</parquet.version>
+    <parquet.version>1.7.0</parquet.version>
     <scala.version>2.10.4</scala.version>
     <scala.version.prefix>2.10</scala.version.prefix>
-    <spark.version>1.6.1</spark.version>
+    <spark.version>1.6.2</spark.version>
     <!-- Edit the following line to configure the Hadoop (HDFS) version. -->
-    <utils.version>0.2.3</utils.version>
+    <utils.version>0.2.8</utils.version>
   </properties>
   
   <build>
     <pluginManagement>
       <plugins>
+        <plugin>
+          <groupId>org.scalariform</groupId>
+          <artifactId>scalariform-maven-plugin</artifactId>
+          <version>0.1.4</version>
+        </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>appassembler-maven-plugin</artifactId>
@@ -144,7 +151,7 @@
           <artifactId>maven-surefire-plugin</artifactId>
           <version>2.17</version>
           <configuration>
-            <skipTests>true</skipTests>
+            <skipTests>false</skipTests>
           </configuration>
         </plugin>
         <!-- enable scalatest -->
@@ -173,6 +180,26 @@
         </plugin>
       </plugins>
     </pluginManagement>
+    <plugins>
+      <plugin>
+        <groupId>org.scalariform</groupId>
+        <artifactId>scalariform-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>format</goal>
+            </goals>
+            <configuration>
+              <alignParameters>true</alignParameters>
+              <alignSingleLineCaseStatements>true</alignSingleLineCaseStatements>
+              <doubleIndentClassDeclaration>true</doubleIndentClassDeclaration>
+              <preserveDanglingCloseParenthesis>true</preserveDanglingCloseParenthesis>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
   
   <profiles>
@@ -229,6 +256,11 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-math3</artifactId>
+        <version>3.6.1</version>
+      </dependency>
+      <dependency>
         <groupId>net.fnothaft</groupId>
         <artifactId>gnocchi-core</artifactId>
         <version>${project.version}</version>
@@ -254,6 +286,12 @@
         <groupId>org.bdgenomics.utils</groupId>
         <artifactId>utils-misc_${scala.version.prefix}</artifactId>
         <version>${utils.version}</version>
+	<exclusions>
+	  <exclusion>
+    	    <groupId>com.esotericsoftware.kryo</groupId>
+    	    <artifactId>kryo</artifactId>
+	  </exclusion>
+	</exclusions>
       </dependency>
       <dependency>
         <groupId>org.scalatest</groupId>

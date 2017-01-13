@@ -19,11 +19,11 @@ import net.fnothaft.gnocchi.models.GenotypeState
 import org.apache.spark.sql.{ Column, DataFrame, Dataset, SQLContext }
 import org.apache.spark.sql.functions._
 import org.bdgenomics.adam.rdd.ADAMContext._
-import org.bdgenomics.formats.avro.Genotype
+import org.bdgenomics.formats.avro.{ GenotypeAllele, Genotype }
 
 object GnocchiContext {
 
-  implicit def gcFromSqlContext(sqlContext: SQLContext): GnocchiContext = 
+  implicit def gcFromSqlContext(sqlContext: SQLContext): GnocchiContext =
     new GnocchiContext(sqlContext)
 }
 
@@ -36,13 +36,11 @@ class GnocchiContext private[sql] (@transient sqlContext: SQLContext) extends Se
   }
 
   def toGenotypeStateDataFrame(gtFrame: DataFrame, ploidy: Int, sparse: Boolean = false): DataFrame = {
-
-    // if we want the sparse representation, we prefilter
-    val sparseFilter = (0 until ploidy).map(i => {
-      gtFrame("alleles").getItem(i) !== "Ref"
-    }).reduce(_ || _)
-
     val filteredGtFrame = if (sparse) {
+      // if we want the sparse representation, we prefilter
+      val sparseFilter = (0 until ploidy).map(i => {
+        gtFrame("alleles").getItem(i) !== "Ref"
+      }).reduce(_ || _)
       gtFrame.filter(sparseFilter)
     } else {
       gtFrame
@@ -50,16 +48,23 @@ class GnocchiContext private[sql] (@transient sqlContext: SQLContext) extends Se
 
     // generate expression
     val genotypeState = (0 until ploidy).map(i => {
-      val c: Column = when(filteredGtFrame("alleles").getItem(i) === "Ref", 1).otherwise(0)
+      val c: Column = when(filteredGtFrame("alleles").getItem(i) === GenotypeAllele.REF.toString, 1).otherwise(0)
       c
     }).reduce(_ + _)
 
-    filteredGtFrame.select(filteredGtFrame("variant.contig.contigName").as("contig"),
-                           filteredGtFrame("variant.start").as("start"),
-                           filteredGtFrame("variant.end").as("end"),
-                           filteredGtFrame("variant.referenceAllele").as("ref"),
-                           filteredGtFrame("variant.alternateAllele").as("alt"),
-                           filteredGtFrame("sampleId"),
-                           genotypeState.as("genotypeState"))
+    val missingGenotypes = (0 until ploidy).map(i => {
+      val c: Column = when(filteredGtFrame("alleles").getItem(i) === GenotypeAllele.NO_CALL.toString, 1).otherwise(0)
+      c
+    }).reduce(_ + _)
+
+    filteredGtFrame.select(
+      filteredGtFrame("contigName").as("contigName"),
+      filteredGtFrame("start").as("start"),
+      filteredGtFrame("end").as("end"),
+      filteredGtFrame("variant.referenceAllele").as("ref"),
+      filteredGtFrame("variant.alternateAllele").as("alt"),
+      filteredGtFrame("sampleId"),
+      genotypeState.as("genotypeState"),
+      missingGenotypes.as("missingGenotypes"))
   }
 }

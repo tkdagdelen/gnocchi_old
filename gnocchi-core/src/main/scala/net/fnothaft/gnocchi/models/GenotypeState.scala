@@ -15,25 +15,34 @@
  */
 package net.fnothaft.gnocchi.models
 
-import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.bdgenomics.adam.models.ReferenceRegion
+import org.bdgenomics.formats.avro.{ Variant }
 
-case class GenotypeState(contig: String,
+case class GenotypeState(contigName: String,
                          start: Long,
                          end: Long,
                          ref: String,
                          alt: String,
                          sampleId: String,
-                         genotypeState: Int) {
+                         genotypeState: Int,
+                         missingGenotypes: Int) {
+
+  def referenceAllele: (ReferenceRegion, String) = {
+    (ReferenceRegion(contigName, start, end), alt)
+  }
 
   def variant: Variant = {
     Variant.newBuilder()
-      .setContig(Contig.newBuilder()
-      .setContigName(contig)
-      .build())
+      .setContigName(contigName)
       .setStart(start)
       .setEnd(end)
       .setReferenceAllele(ref)
       .setAlternateAllele(alt)
       .build()
+  }
+
+  def tempVariantId = {
+    val posString = start.toString
+    s"$posString" + "_$alt"
   }
 }

@@ -20,10 +20,9 @@ import net.fnothaft.gnocchi._
 import net.fnothaft.gnocchi.imputation.FillGenotypes
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.SparkContext._
-import org.apache.spark.{ Logging, SparkContext }
+import org.apache.spark.SparkContext
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.adam.rdd.ADAMContext._
-import org.bdgenomics.adam.rdd.BroadcastRegionJoin
 import org.bdgenomics.formats.avro._
 import org.bdgenomics.utils.misc.HadoopUtil
 import org.bdgenomics.utils.cli._
@@ -49,11 +48,11 @@ class FillInArgs extends Args4jBase {
   var output: String = null
 
   @Args4jOption(required = false, name = "-useNoCall",
-                usage = "Fills in genotypes with NoCall alleles, instead of Ref.")
+    usage = "Fills in genotypes with NoCall alleles, instead of Ref.")
   var useNoCall = false
 
   @Args4jOption(required = false, name = "-ploidy",
-                usage = "Assumed ploidy. Default is 2 (diploid).")
+    usage = "Assumed ploidy. Default is 2 (diploid).")
   var ploidy = 2
 }
 
@@ -66,10 +65,10 @@ class FillIn(protected val args: FillInArgs) extends BDGSparkCommand[FillInArgs]
 
     // fill in genotypes
     val recomputedGenotypes = FillGenotypes(genotypes,
-                                            useNoCall = args.useNoCall,
-                                            ploidy = args.ploidy)
+      useNoCall = args.useNoCall,
+      ploidy = args.ploidy)
 
     // save to disk
-    recomputedGenotypes.adamParquetSave(args.output)
+    recomputedGenotypes.save(args.output)
   }
 }

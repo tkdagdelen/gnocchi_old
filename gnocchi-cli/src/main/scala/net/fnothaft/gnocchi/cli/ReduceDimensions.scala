@@ -19,7 +19,7 @@ import net.fnothaft.gnocchi.models.{ GenotypeState, ReducedDimension }
 import net.fnothaft.gnocchi.clustering.WideFlatPCA
 import net.fnothaft.gnocchi.sql.GnocchiContext._
 import org.apache.spark.SparkContext._
-import org.apache.spark.{ Logging, SparkContext }
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.utils.misc.HadoopUtil
@@ -57,7 +57,7 @@ class ReduceDimensions(protected val args: ReduceDimensionsArgs) extends BDGSpar
 
   def run(sc: SparkContext) {
     require(args.dimensions >= 1, "Dimensionality (%d) must be positive.".format(args.dimensions))
-    
+
     // load in genotype data
     val sqlContext = SQLContext.getOrCreate(sc)
     import sqlContext.implicits._

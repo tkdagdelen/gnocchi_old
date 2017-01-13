@@ -17,17 +17,20 @@ package net.fnothaft.gnocchi.sql
 
 import net.fnothaft.gnocchi.models.GenotypeState
 import org.apache.spark.SparkContext._
-import org.apache.spark.Logging
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.mllib.linalg.distributed.{ MatrixEntry, RowMatrix }
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ Dataset, Row }
 import org.bdgenomics.formats.avro.Variant
 
-object GenotypeStateMatrix extends Serializable with Logging {
+object GenotypeStateMatrix extends Serializable {
 
   def apply(ds: Dataset[GenotypeState]): (RowMatrix, Map[String, Int]) = {
 
+    // """
+    // Creates a matrix where the rows are sites and the columns are samples.
+    // The value at any given location is the genotype dose (Double) for a sample at that site. 
+    // """
     // get sample id's and broadcast
     val df = ds.toDF()
     df.cache()
@@ -37,19 +40,19 @@ object GenotypeStateMatrix extends Serializable with Logging {
       .map(r => r match {
         case Row(sampleId: String) => sampleId
       }).collect
-        .zipWithIndex
-        .toMap
+      .zipWithIndex
+      .toMap
     val rdd = ds.rdd
     val bcastIds = rdd.context.broadcast(sampleIds)
     val samples = sampleIds.size
-    log.info("Have %d samples.".format(samples))
+    println("Have %d samples.".format(samples))
 
     // filter out reference calls and join against sample id's, then group by pos
     val samplesByVariant = rdd.flatMap(filterAndJoin(_, bcastIds.value))
       .groupByKey
       .cache
     val sites = samplesByVariant.count
-    log.info("Have %d sites.".format(sites))
+    println("Have %d sites.".format(sites))
 
     // create matrix by mapping sites into rows
     val matrix = new RowMatrix(samplesByVariant.map(siteToRow(_, samples)), sites, samples)

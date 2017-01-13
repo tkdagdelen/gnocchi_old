@@ -17,8 +17,8 @@ package net.fnothaft.gnocchi.imputation
 
 import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
-import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.adam.models.VariantContext
+import org.bdgenomics.adam.rdd.variant.GenotypeRDD
 import org.bdgenomics.formats.avro.{ Genotype, GenotypeAllele }
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -39,7 +39,7 @@ private[gnocchi] object FillGenotypes extends Serializable {
 
     // what samples are missing at this site?
     val missingSamples = decimateSamples(vc.genotypes.toIterator,
-                                         samples)
+      samples)
 
     // for these samples, create new genotypes
     val filledInGenotypes = missingSamples.toIterable
@@ -54,29 +54,31 @@ private[gnocchi] object FillGenotypes extends Serializable {
     vc.genotypes ++ filledInGenotypes
   }
 
-  def apply(rdd: RDD[Genotype],
+  def apply(rdd: GenotypeRDD,
             useNoCall: Boolean = false,
-            ploidy: Int = 2): RDD[Genotype] = {
+            ploidy: Int = 2): GenotypeRDD = {
 
     // create list for filling in sites
     val fillIn = Seq.fill(ploidy)({
       if (useNoCall) {
-        GenotypeAllele.NoCall
+        GenotypeAllele.NO_CALL
       } else {
-        GenotypeAllele.Ref
+        GenotypeAllele.REF
       }
     })
 
     // get sample ids
-    val sampleIds = rdd.map(_.getSampleId)
+    val sampleIds = rdd.rdd.map(_.getSampleId)
       .distinct
       .collect
       .toSet
 
     // transform genotypes into variant contexts
-    val vcRdd = rdd.toVariantContext
+    val vcRdd = rdd.toVariantContextRDD
 
     // flat map to fill in
-    vcRdd.flatMap(fillInVC(_, sampleIds, fillIn))
+    val rddVc = vcRdd.rdd.flatMap(fillInVC(_, sampleIds, fillIn))
+
+    GenotypeRDD(rddVc, rdd.sequences, rdd.samples)
   }
 }
