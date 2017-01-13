@@ -252,6 +252,10 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     var numZeroPredZeroActual = 0.0
     var numOnePredZeroActual = 0.0
     var numOnePredOneActual = 0.0
+    var truePositives = 0.0
+    var trueNegatives = 0.0
+    var falsePositives = 0.0
+    var falseNegatives = 0.0
     for (i <- resArray.indices) {
       val pred = resArray(i)._2._1
       val actual = resArray(i)._2._2
@@ -259,16 +263,18 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
         numZeroActual += 1.0
         if (pred == 1.0) {
           numOnePredZeroActual += 1.0
+          falsePositives += 1.0
         } else {
-          totalCorrect += 1.0
+          trueNegatives += 1.0
           numZeroPred += 1.0
           numZeroPredZeroActual += 1.0
         }
       } else {
         if (pred == 0.0) {
+          falseNegatives += 1.0
           numZeroPredOneActual += 1.0
         } else {
-          totalCorrect += 1.0
+          truePositives += 1.0
           numOnePredOneActual += 1.0
         }
       }
@@ -279,9 +285,9 @@ class EvaluateModel(protected val args: EvaluateModelArgs) extends BDGSparkComma
     val percentPredOneActualZero = numOnePredZeroActual / numZeroActual
     val percentPredZero = numZeroPred / numSamples
     val percentPredOne = 1 - percentPredZero
-    val accuracy = totalCorrect / numSamples
-    val ppv = numOnePredOneActual / (numSamples - numZeroPred)
-    val npv = numZeroPredZeroActual / (numZeroPred)
+    val accuracy = (truePositives + trueNegatives) / numSamples
+    val ppv = truePositives / (truePositives + falsePositives)
+    val npv = trueNegatives / (trueNegatives + falseNegatives)
 
     evalResult.totalPZA += percentZeroActual
     evalResult.totalPOA += percentOneActual
