@@ -43,21 +43,7 @@ trait ValidationRegression extends SiteRegression {
       })
     //    println("\n\n" + modelRdd.take(1).toList)
 
-    val bestModelRdd = if (n == 0) {
-      modelRdd
-    } else {
-      val bestModels = modelRdd.takeOrdered(n)(Ordering.by(_._2.logPValue))
-      if (bestModels.length == 0) {
-        println("There were no non-empty association models remaining...")
-      }
-      val nthModelLPV = bestModels(bestModels.length - 1)._2.logPValue
-      val bestModelRdd = modelRdd.filter(_._2.logPValue <= nthModelLPV)
-      println("Number of items in modelRdd, pre-filter: " + modelRdd.collect().length)
-      println("bestModels logPValues: \n" + bestModels.map(_._2.logPValue).toList)
-      println("Filtering on logPValue: " + bestModels(2)._2.logPValue)
-      println("Number of items in bestModelRdd: " + modelRdd.collect().length)
-      bestModelRdd
-    }
+    val bestModelRdd = pickTopN(modelRdd, n)
 
     val temp = formatWithSample(testRdd)
     //    println("\n\n" + temp.take(1).toList)
@@ -77,7 +63,24 @@ trait ValidationRegression extends SiteRegression {
         (clipOrKeepState(genotypeState), phenotype.toDouble, sampleid)
       }).toArray, association), association)
     })
+  }
 
+  final def pickTopN(modelRdd: RDD[((Variant, String), Association)], n: Int) = {
+    if (n == 0) {
+      modelRdd
+    } else {
+      val bestModels = modelRdd.takeOrdered(n)(Ordering.by(_._2.logPValue))
+      if (bestModels.length == 0) {
+        println("There were no non-empty association models remaining...")
+      }
+      val nthModelLPV = bestModels(bestModels.length - 1)._2.logPValue
+      val bestModelRdd = modelRdd.filter(_._2.logPValue <= nthModelLPV)
+      println("Number of items in modelRdd, pre-filter: " + modelRdd.collect().length)
+      println("bestModels logPValues: \n" + bestModels.map(_._2.logPValue).toList)
+      println("Filtering on logPValue: " + bestModels(2)._2.logPValue)
+      println("Number of items in bestModelRdd: " + modelRdd.collect().length)
+      bestModelRdd
+    }
   }
 
   final protected def formatWithSample[T](genoPhenoRdd: RDD[(String, (GenotypeState, Phenotype[T]))]): RDD[((Variant, String), Iterable[(String, (GenotypeState, Phenotype[T]))])] = {
