@@ -34,7 +34,11 @@ trait ValidationRegression extends SiteRegression {
                      k: Double = 10,
                      n: Int = 5): RDD[(Array[(String, (Double, Double))], Association)] = {
     val genoPhenoRdd = rdd.keyBy(_.sampleId).join(phenotypes.keyBy(_.sampleId))
-    val Array(trainRdd, testRdd) = genoPhenoRdd.randomSplit(Array(1.0 - (1.0 / k), 1.0 / k))
+    val Array(trainRdd, testRdd) = if (k == 0) {
+      Array(genoPhenoRdd, genoPhenoRdd)
+    } else {
+      genoPhenoRdd.randomSplit(Array(1.0 - (1.0 / k), 1.0 / k))
+    }
 
     val modelRdd = super.apply(trainRdd)
       .filter(varModel => {
@@ -78,7 +82,7 @@ trait ValidationRegression extends SiteRegression {
       println("Number of items in modelRdd, pre-filter: " + modelRdd.collect().length)
       println("bestModels logPValues: \n" + bestModels.map(_._2.logPValue).toList)
       println("Filtering on logPValue: " + bestModels(2)._2.logPValue)
-      println("Number of items in bestModelRdd: " + modelRdd.collect().length)
+      println("Number of items in bestModelRdd: " + bestModelRdd.collect().length)
       bestModelRdd
     }
   }

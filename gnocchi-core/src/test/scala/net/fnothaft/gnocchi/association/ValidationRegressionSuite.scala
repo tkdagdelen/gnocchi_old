@@ -25,27 +25,49 @@ import org.bdgenomics.formats.avro.Variant
 class ValidationRegressionSuite extends GnocchiFunSuite {
 
   sparkTest("Test pickTopN takes top N associations by p-value") {
-    val pathToFile = ClassLoader.getSystemClassLoader.getResource("binarySplit.csv").getFile
-    val csv = sc.textFile(pathToFile)
-    val data = csv.map(line => line.split(",")) //get rows
+    val pathToGenoFile = ClassLoader.getSystemClassLoader.getResource("binaryValGenos.csv").getFile
+    val genoCsv = sc.textFile(pathToGenoFile)
+    val genoData = genoCsv.map(line => line.split(",")) //get rows
+
+    val pathToPhenoFile = ClassLoader.getSystemClassLoader.getResource("binaryValPhenos.csv").getFile
+    val phenoCsv = sc.textFile(pathToPhenoFile)
+    val phenoData = phenoCsv.map(line => line.split(",")) //get rows
 
     // transform it into the right format
-    val genoStates = data.map(row => {
+    val genoStates = genoData.map(row => {
       val sampleid: String = row(0)
       val loc: Int = row(1).toInt
       val geno: Int = row(2).toInt
       GenotypeState("A", loc, loc + 1, "A", "A", sampleid, geno, 0)
     })
 
-    val phenos = data.map(row => {
+    val phenos = phenoData.map(row => {
       val sampleid: String = row(0)
-      val covars: Array[Double] = row.slice(3, 5).map(_.toDouble)
-      val phenos: Array[Double] = Array(row(5).toDouble) ++ covars
+      val covars: Array[Double] = row.slice(1, 3).map(_.toDouble)
+      val phenos: Array[Double] = Array(row(3).toDouble) ++ covars
       MultipleRegressionDoublePhenotype("pheno", sampleid, phenos).asInstanceOf[Phenotype[Array[Double]]]
     })
+    println(genoStates.collect())
+    println(phenos.collect())
 
-    val results = AdditiveLogisticEvaluation(genoStates, phenos, k = 1, n = 3).collect()
+    val expectedPVals = Map(1000 -> 0.198705131, 2000 -> 0.364599906, 3000 -> 0.912237, 4000 -> 0.697518422)
+    val resultRdd = AdditiveLogisticEvaluation(genoStates, phenos, Option(sc), k = 0, n = 3)
+    val results = resultRdd.collect()
+
+    // Check that we only receive 3 association objects
     assert(results.length == 3)
+    // Check that the association dropped was that of location 3000 (refer to above expected P-values)
+    assert(!results.map(_._2.variant.getStart).contains(3000))
+    // Check that remaining associations fall within thresholds of expected P-values
+    assert(results.map(res => {
+      val (_, assoc) = res
+      val site = assoc.variant.getStart
+
+      val expected = expectedPVals(site.toInt)
+      val actual = assoc.statistics("'P Values' aka Wald Tests").asInstanceOf[DenseVector[Double]](1)
+
+      actual >= expected - 0.00005 && actual <= expected + 0.00005
+    }).reduce((i, j) => i && j))
   }
 }
 
