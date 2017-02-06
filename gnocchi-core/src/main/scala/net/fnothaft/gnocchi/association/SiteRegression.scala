@@ -38,9 +38,31 @@ trait SiteRegression extends Serializable {
     //      println(el)
     //      println(el.asInstanceOf[MultipleRegressionDoublePhenotype].value.toList)
     //    })
-    rdd.keyBy(_.sampleId)
-      // join together the samples with both genotype and phenotype entry
-      .join(phenotypes.keyBy(_.sampleId))
+
+    // TODO: Currently we're transferring "more data" so we should look at this again
+    apply(rdd.keyBy(_.sampleId).join(phenotypes.keyBy(_.sampleId))).map(_._2)
+  }
+
+  /*
+  Convenience function for sub class
+  */
+  final protected def apply[T](genoPhenoRdd: RDD[(String, (GenotypeState, Phenotype[T]))]): RDD[((Variant, String), Association)] = {
+    format(genoPhenoRdd)
+      .map(site => {
+        val ((variant, pheno), observations) = site
+        // build array to regress on, and then regress
+        val assoc = regressSite(observations.map(p => {
+          // unpack p
+          val (genotypeState, phenotype) = p
+          // return genotype and phenotype in the correct form
+          (clipOrKeepState(genotypeState), phenotype.toDouble)
+        }).toArray, variant, pheno)
+        ((variant, pheno), assoc)
+      })
+  }
+
+  final protected def format[T](genoPhenoRdd: RDD[(String, (GenotypeState, Phenotype[T]))]): RDD[((Variant, String), Iterable[(GenotypeState, Phenotype[T])])] = {
+    genoPhenoRdd
       .map(kvv => {
         // unpack the entry of the joined rdd into id and actual info
         val (_, p) = kvv
@@ -59,16 +81,6 @@ trait SiteRegression extends Serializable {
         variant.setAlternateAllele(gs.alt)
         ((variant, pheno.phenotype), p)
       }).groupByKey()
-      .map(site => {
-        val ((variant, pheno), observations) = site
-        // build array to regress on, and then regress
-        regressSite(observations.map(p => {
-          // unpack p
-          val (genotypeState, phenotype) = p
-          // return genotype and phenotype in the correct form
-          (clipOrKeepState(genotypeState), phenotype.toDouble)
-        }).toArray, variant, pheno)
-      })
   }
 
   /**
